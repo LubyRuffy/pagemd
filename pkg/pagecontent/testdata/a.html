@@ -1,0 +1,601 @@
+
+<!DOCTYPE html>
+<html lang="en" prefix="og: http://ogp.me/ns# fb: https://www.facebook.com/2008/fbml">
+<head>
+    <title>Bluetooth Low Energy GATT Fuzzing - Quarkslab's blog</title>
+    <!-- Using the latest rendering mode for IE -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+
+    <link href="./extras/favicon.png" rel="icon">
+
+    <link rel="canonical" href="./bluetooth-low-energy-gatt-fuzzing.html">
+
+    <meta name="author" content="Baptiste Boyer" />
+    <meta name="keywords" content="BLE,fuzzing,vulnerability,2024" />
+    <meta name="description" content="This blog post presents our fuzzer for the Bluetooth Low Energy GATT layer and the related vulnerabilities found with it." />
+
+    <meta property="og:site_name" content="Quarkslab's blog" />
+    <meta property="og:type" content="article"/>
+    <meta property="og:title" content="Bluetooth Low Energy GATT Fuzzing"/>
+    <meta property="og:url" content="./bluetooth-low-energy-gatt-fuzzing.html"/>
+    <meta property="og:description" content="This blog post presents our fuzzer for the Bluetooth Low Energy GATT layer and the related vulnerabilities found with it."/>
+    <meta property="article:published_time" content="2024-10-25" />
+    <meta property="article:section" content="Fuzzing" />
+    <meta property="article:tag" content="BLE" />
+    <meta property="article:tag" content="fuzzing" />
+    <meta property="article:tag" content="vulnerability" />
+    <meta property="article:tag" content="2024" />
+    <meta property="article:author" content="Baptiste Boyer" />
+
+
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="./theme/css/bootstrap.min.css" type="text/css"/>
+    <link href="./theme/css/font-awesome.min.css" rel="stylesheet">
+    <link href="./theme/css/font-awesome-brands.min.css" rel="stylesheet">
+    <link href="./theme/css/font-awesome-solid.min.css" rel="stylesheet">
+
+    <link href="./theme/css/pygments/default.css" rel="stylesheet">
+    <link rel="stylesheet" href="./theme/css/style.css" type="text/css"/>
+    <link href="./static/css/custom.css" rel="stylesheet">
+
+    <link href="./feeds/all.atom.xml" type="application/atom+xml" rel="alternate"
+          title="Quarkslab's blog ATOM Feed"/>
+
+    <link href="./feeds/fuzzing.atom.xml" type="application/atom+xml" rel="alternate"
+          title="Quarkslab's blog Fuzzing ATOM Feed"/>
+
+</head>
+<body>
+
+<div class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <a href="../../../data" class="navbar-brand">
+                Quarkslab's blog            </a>
+        </div>
+        <div class="collapse navbar-collapse navbar-ex1-collapse">
+            <ul class="nav navbar-nav">
+            </ul>
+            <ul class="nav navbar-nav navbar-right">
+                <li><a href="./archives.html"><i class="fa fa-th-list"></i><span class="icon-label">Archives</span></a></li>
+            </ul>
+        </div>
+        <!-- /.navbar-collapse -->
+    </div>
+</div> <!-- /.navbar -->
+
+<!-- Banner -->
+<!-- End Banner -->
+
+<!-- Content Container -->
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-7 col-sm-push-3">
+            <section id="content">
+                <article>
+                    <header class="page-header">
+                        <h1>
+                            <a href="./bluetooth-low-energy-gatt-fuzzing.html"
+                               rel="bookmark"
+                               title="Permalink to Bluetooth Low Energy GATT Fuzzing">
+                                Bluetooth Low Energy  GATT Fuzzing
+                            </a>
+                        </h1>
+                    </header>
+                    <div class="entry-content">
+                        <div class="panel">
+                            <div class="panel-body">
+                                <footer class="post-info">
+                                    <span class="label label-default">Date</span>
+                                    <span class="published">
+        <i class="fa fa-calendar"></i><time datetime="2024-10-25T00:00:00+02:00"> Fri 25 October 2024</time>
+    </span>
+
+
+                                    <span class="label label-default">By</span>
+                                    <a href="./author/baptiste-boyer.html"><i class="fa fa-user"></i> Baptiste Boyer</a>
+
+                                    <span class="label label-default">Category</span>
+                                    <a href="./category/fuzzing.html">Fuzzing</a>
+
+
+                                    <span class="label label-default">Tags</span>
+                                    <a href="./tag/ble.html"><i class="fa fa-solid fa-tag"></i>BLE</a>
+                                    <a href="./tag/fuzzing.html"><i class="fa fa-solid fa-tag"></i>fuzzing</a>
+                                    <a href="./tag/vulnerability.html"><i class="fa fa-solid fa-tag"></i>vulnerability</a>
+                                    <a href="./tag/2024.html"><i class="fa fa-solid fa-tag"></i>2024</a>
+
+                                </footer><!-- /.post-info -->                    </div>
+                        </div>
+                        <div class="summary"><p>This blog post presents our fuzzer for the Bluetooth Low Energy GATT layer and the related vulnerabilities found with it.</p></div>
+                        <h2>Introduction</h2>
+                        <p>Bluetooth Low Energy (BLE) is a widely adopted wireless communication technology used by billions of devices in various applications. These
+                            applications range from IoT domain to more sensitive devices such as medical ones.<br>
+                            BLE has been subject to a lot of research so far [<a href="https://www.usenix.org/conference/atc20/presentation/garbelini">1</a>, <a href="https://www.usenix.org/conference/usenixsecurity19/presentation/antonioli">2</a>, <a href="https://www.ieee-security.org/TC/SP2021/SPW2021/WOOT21/files/woot21-claverie-slides.pdf">3</a>], but only a few of them targeted specification corner cases which require high-level
+                            manipulation of the GATT layer.</p>
+                        <p>Based on that reason, we decided to build a fuzzer based on attack scenarios defined after conducting an in-depth study of the BLE specification.
+                            Our work resulted in the discovery of non-conformities, bugs, and vulnerabilities in various BLE stacks.</p>
+                        <p>This R&amp;D work was carried out during Baptiste Boyer's internship at Quarkslab.</p>
+                        <h2>BLE analysis</h2>
+                        <p>The BLE protocol is built upon multiple layers that extend from the radio layer to the application layer as described below:</p>
+                        <p><a href="resources/2024-09-18_ble-gatt-fuzzing/ble_stack.png">
+                            <img class="align-center" src="resources/2024-09-18_ble-gatt-fuzzing/ble_stack.png" alt="BLE Protocol Stack." width="60%" height="60%"></p>
+                        <p class="center-text">BLE Stack</p>
+                        <p><br />
+                            </a></p>
+                        <p>Our study focuses on the Attribute Protocol (ATT) layer and on the Generic Attribute Protocol (GATT) layer.
+                            However, it is also important to define the two key components of the BLE framework that are the Host and the Controller.</p>
+                        <p>The Host and Controller represent distinct entities with specific roles in
+                            the communication process. The Host is typically associated with the device’s
+                            primary processing unit, such as a computer or smartphone. It oversees higher
+                            layers of the BLE protocol stack, managing connections, configuring parameters,
+                            and handling application-specific communication needs. In contrast, the
+                            Controller operates at a lower layer, responsible for radio frequency communication aspects.
+                            Implemented in specialized hardware, like a Bluetooth chip, the
+                            Controller executes tasks such as frequency hopping, modulation, and power
+                            control, ensuring reliable and efficient radio communication. To be able to communicate together,
+                            they use the Host Controller Interface (HCI).</p>
+                        <h3>ATT Layer</h3>
+                        <p>The Attribute Protocol (ATT) defines two distinct roles: a server and a client. The server is responsible for storing and managing attributes, while the client accesses and manipulates these attributes. In this context, an attribute is a data representation format composed of four fields.</p>
+                        <p>The Attribute data structure has the following format:</p>
+                        <table class="table table-striped">
+                            <thead>
+                            <th>Attribute field</th>
+                            <th>Size (bytes)</th>
+                            <th>Description</th>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <th scope="row" class="no-wrap">Handle</th>
+                                <td>2</td>
+                                <td>A unique identifier assigned to each attribute, allowing devices to reference and interact with them.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">UUID</th>
+                                <td>2 or 16</td>
+                                <td>An identifier that uniquely identifies a specific attribute type, defining its purpose and characteristics.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">Value</th>
+                                <td>Variable length</td>
+                                <td>The actual data associated with an attribute, representing the information communicated between devices. </td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">Permissions</th>
+                                <td>Implementation specific</td>
+                                <td>Access rights and restrictions governing how and attribute can be read, written, or otherwise interacted with by devices, ensuring security and control over the data exchange.</td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <p>The ATT Protocol outlines methods for both reading and writing attributes. These methods involve ATT Protocol Data Unit (PDU) for communication.
+                            In the context of the ATT protocol, a PDU represents the packet that is exchanged with the lower layer – specifically, the L2CAP layer.
+                            This packet is then encapsulated for transmission over the physical link or sent to the upper layers.</p>
+                        <p>Attribute PDUs have the following format:</p>
+                        <table class="table table-striped">
+                            <thead>
+                            <th>Name</th>
+                            <th>Size (bytes)</th>
+                            <th>Description</th>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <th scope="row" class="no-wrap">Attribute Opcode</th>
+                                <td>1</td>
+                                <td>The attribute PDU operation code.<br>
+                                    bit 7: Authentication Signature Flag.<br>
+                                    bit 6: Command Flag.<br>
+                                    bits 5-0: Method.
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">Attribute Parameters</th>
+                                <td>0 to (ATT_MTU - X)</td>
+                                <td>The attribute PDU parameters.<br>
+                                    X = 1 if Authentication Signature Flag of the Attribute code is 0.<br>
+                                    X = 13 if Authentication Signature Flag of the Attribute code is 1.
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">Authentication Signature</th>
+                                <td>0 or 12</td>
+                                <td>Optional authentication signature for the Attribute Opcode and Attribute Parameters. </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <p>Let’s elaborate on the behavior of the ATT PDU called <code>Prepare Write Request</code>, as most of our findings are associated with this ATT PDU.</p>
+                        <p>The <code>Prepare Write Request</code> ATT PDU is vital when dealing with the need to
+                            write a long Attribute value, i.e., an attribute value where its size
+                            exceeds (ATT_MTU - 1). The default Maximum Transmission Unit (MTU) in
+                            BLE communications is 23 bytes. This ATT PDU is used to request the server to
+                            prepare the write of a value for a specified attribute. The server responds with a
+                            <code>Prepare Write Response</code> to confirm the correct reception of the value. Multiple
+                            <code>Prepare Write Request</code> ATT PDUs may be sent to transmit the complete Attribute
+                            value. Once all the ATT PDUs have been transmitted, the client sends an <code>Execute Write Request</code> to instruct the server to write the value.</p>
+                        <p>The format of the <code>Prepare Write Request</code> is as follows:</p>
+                        <table class="table table-striped">
+                            <thead>
+                            <th>Parameter</th>
+                            <th>Size (bytes)</th>
+                            <th>Description</th>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <th scope="row" class="no-wrap">Attribute Opcode</th>
+                                <td>1</td>
+                                <td>0x16 = ATT_PREPARE_WRITE_REQ PDU.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">Attribute Handle</th>
+                                <td>2</td>
+                                <td>The handle of the attribute to be written.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">Attribute Offset</th>
+                                <td>2</td>
+                                <td>The offset of the first byte to be written.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="no-wrap">Part Attribute Value</th>
+                                <td>0 to (ATT_MTU-5)</td>
+                                <td>The value of the attribute to be written. </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>GATT Layer</h3>
+                        <p>The Generic Attribute Profile (GATT) establishes a service framework built
+                            upon the ATT Protocol. This framework defines procedures and formats
+                            for services and their characteristics are defined. These procedures encompass
+                            various operations such as discovering, reading, writing characteristics but also notifying and indicating any characteristic value modification.
+                            Additionally, GATT outlines procedures for configuring the
+                            broadcast of characteristics. It also defines some <a href="https://www.bluetooth.com/specifications/assigned-numbers.">standard profiles</a> with associated
+                            services and characteristics.</p>
+                        <p>The GATT Profile establishes the format for exchanging profile data, defining
+                            fundamental elements such as services and characteristics within the structure.
+                            These elements are encapsulated by Attributes, which serve as containers for
+                            carrying profile data in the ATT Protocol.</p>
+                        <p><a href="resources/2024-09-18_ble-gatt-fuzzing/gatt_profile_hierarchy.png">
+                            <img class="align-center" src="resources/2024-09-18_ble-gatt-fuzzing/gatt_profile_hierarchy.png" alt="Profile Hierarchy." width="40%" height="40%"></p>
+                        <p class="center-text">GATT Profile Hierarchy</p>
+                        <p><br />
+                            </a></p>
+                        <h2>Attack scenarios</h2>
+                        <p>After an in-depth study of the specification, 9 attack scenarios were defined.
+                            The main goal of this study was to pinpoint corner cases and inaccuracies within
+                            the specification, providing a foundation for the development of precise attack scenarios.</p>
+                        <p>The description of the scenarios is provided in the related <a href="https://github.com/quarkslab/conf-presentations/tree/master/Confs/Hardweario-NL-2024/2024-10-25-ble-gatt-fuzzing-paper-bboyer.pdf">paper</a>.</p>
+                        <h2>Fuzzer</h2>
+                        <p>The attack scenarios were implemented as fuzzing scripts in Python using the <em><a href="https://whad.io/">WHAD</a></em> framework.</p>
+                        <p>We opted for <em>WHAD</em> as our chosen framework for its
+                            specific capabilities in the BLE context. This framework equips us with all the
+                            essential tools for testing the GATT layer, including transparent PDUs logging
+                            and its own BLE stack implementation. It offers simple methods to create
+                            and send BLE packets, encompassing the entire spectrum of ATT possibilities.
+                            Additionally, it facilitates the seamless setup of a GATT server and enables
+                            straightforward modification of its behavior.</p>
+                        <p>The fuzzer architecture was designed with certain key choices in mind. One
+                            notable decision involved the type of connection established during a fuzzing
+                            session. Instead of initiating a new connection for each test case, we opted for
+                            a single connection for the entire fuzzing session. This choice was driven by
+                            the belief that retaining previous states of the stack could potentially aid in
+                            triggering and identifying bugs. </p>
+                        <p>We opted for a randomized approach to populate the ATT PDUs. An example illustrating the <code>Prepare Write Request</code> ATT PDU
+                            mentioned earlier is provided below. Additionally, it is worth noting that each
+                            fuzzing session focused solely on testing a single scenario.</p>
+                        <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">mutate_fill_payload</span><span class="p">(</span><span class="n">att_proc</span><span class="p">,</span> <span class="n">gatt_handle</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fills and returns the ATT primitive</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">match</span> <span class="n">att_proc</span><span class="p">:</span>
+    <span class="o">...</span>
+     <span class="k">case</span> <span class="n">scapy</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">bluetooth</span><span class="o">.</span><span class="n">ATT_Prepare_Write_Request</span><span class="p">:</span>
+
+        <span class="n">_gatt_handle</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">gatt_handle</span><span class="p">)</span>
+        <span class="n">_offset</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">65535</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">80</span><span class="p">)</span>
+        <span class="n">_data</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randbytes</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ATT_Prepare_Write_Request</span><span class="p">(</span><span class="n">gatt_handle</span> <span class="o">=</span> <span class="n">_gatt_handle</span><span class="p">,</span>
+                                         <span class="n">offset</span> <span class="o">=</span> <span class="n">_offset</span><span class="p">,</span>
+                                         <span class="n">data</span> <span class="o">=</span> <span class="n">_data</span><span class="p">)</span> <span class="p">,</span> <span class="mi">5</span> <span class="o">+</span> <span class="n">n</span>
+</code></pre></div>
+
+                        <p>Several parameters are set through the CLI interface, the help option displays the following content:</p>
+                        <p><a href="resources/2024-09-18_ble-gatt-fuzzing/CLI_help.png">
+                            <img class="align-center" src="resources/2024-09-18_ble-gatt-fuzzing/CLI_help.png" alt="CLI help." width="80%" height="80%"></p>
+                        <p class="center-text">CLI help output</p>
+                        <p><br />
+                            </a></p>
+                        <p>The tool implementing the scripts scenario can be found on <a href="https://github.com/quarkslab/ble-gatt-fuzzing">Quarkslab's GitHub</a>.</p>
+                        <h2>Results</h2>
+                        <p>Only the vulnerabilities are discussed in this section. The description of the non-conformities and bugs is provided in the related <a href="https://github.com/quarkslab/conf-presentations/tree/master/Confs/Hardweario-NL-2024/2024-10-25-ble-gatt-fuzzing-paper-bboyer.pdf">paper</a>.</p>
+                        <h3>Espressif GATT server example</h3>
+                        <p>This vulnerability is associated with the Bluedroid stack provided in
+                            the ESP-IDF framework. More specifically, it is related to the GATT server
+                            example provided for Espressif devices, intended for using Bluedroid. This
+                            vulnerability exposes a risk of heap overflow.</p>
+                        <p>We uncovered this vulnerability during the code review of the Bluedroid
+                            stack. Building on our prior discoveries of bugs, our aim was to assess the impact
+                            on user applications. Upon scrutinizing the provided GATT server example, we
+                            finally identified this Out-of-Bounds write issue.</p>
+                        <p>Their initial misguided decision involves allowing the user to verify the
+                            conformity of parameters provided in the <code>Prepare Write Request</code> ATT PDU by
+                            default.</p>
+                        <p>The root cause of the vulnerability was located in the <code>example_writ_event_env()</code> function during the copy of a received <code>Prepare Write Request</code>’s value
+                            into the allocated buffer <code>prepare_buf</code> as we can see in the code below:</p>
+                        <div class="highlight"><pre><span></span><code><span class="n">memcpy</span><span class="p">(</span><span class="n">prepare_write_env</span><span class="o">-&gt;</span><span class="n">prepare_buf</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">param</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">.</span><span class="n">offset</span><span class="p">,</span>
+<span class="w">       </span><span class="n">param</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">.</span><span class="n">value</span><span class="p">,</span>
+<span class="w">       </span><span class="n">param</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">.</span><span class="n">len</span><span class="p">);</span>
+</code></pre></div>
+
+                        <p>An attacker controls both the offset and the value and is able to write outside
+                            of the allocated buffer. A check on the offset is actually done but only when the allocated
+                            buffer has already been allocated, and therefore this check is not performed for
+                            the first received <code>Prepare Write Request</code>.</p>
+                        <div class="highlight"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">example_write_event_env</span><span class="p">(</span><span class="n">esp_gatt_if_t</span><span class="w"> </span><span class="n">gatts_if</span><span class="p">,</span><span class="w"> </span><span class="n">prepare_type_env_t</span><span class="w"> </span><span class="o">*</span><span class="n">prepare_write_env</span><span class="p">,</span><span class="w"> </span><span class="n">esp_ble_gatts_cb_param_t</span><span class="w"> </span><span class="o">*</span><span class="n">param</span><span class="p">){</span>
+<span class="w">    </span><span class="p">[...]</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">prepare_write_env</span><span class="o">-&gt;</span><span class="n">prepare_buf</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">prepare_write_env</span><span class="o">-&gt;</span><span class="n">prepare_buf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">malloc</span><span class="p">(</span><span class="n">PREPARE_BUF_MAX_SIZE</span><span class="o">*</span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint8_t</span><span class="p">));</span>
+<span class="w">        </span><span class="n">prepare_write_env</span><span class="o">-&gt;</span><span class="n">prepare_len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">prepare_write_env</span><span class="o">-&gt;</span><span class="n">prepare_buf</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ESP_LOGE</span><span class="p">(</span><span class="n">GATTS_TAG</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Gatt_server prep no mem</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="w">            </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ESP_GATT_NO_RESOURCES</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="n">param</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">.</span><span class="n">offset</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">PREPARE_BUF_MAX_SIZE</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ESP_GATT_INVALID_OFFSET</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">param</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">.</span><span class="n">offset</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">param</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">.</span><span class="n">len</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">PREPARE_BUF_MAX_SIZE</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ESP_GATT_INVALID_ATTR_LEN</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
+
+                        <p>Unfortunately, Espressif did not categorize this as a vulnerability within their
+                            bounty program, treating it solely as a bug despite its clear manifestation as a
+                            heap overflow issue. However, following our report, this vulnerability has been fixed in a timely manner by
+                            Espressif without any communication about it, affecting 7 of their code examples.
+                            We are curious to know about the number of applications that relied on
+                            these code examples and remain susceptible to our discovery.</p>
+                        <p>Espressif's response: "<em>Regarding the issue with the example memcopy, this problematic code segment is not present in the host and controller codes. It is solely included in the Example to demonstrate how the ESP API is used. Typically, customer code is autonomously developed based on the API, and the impact of this issue on customers is minor, lacking any substantial consequences.</em>"</p>
+                        <h3><a href="https://www.cve.org/CVERecord?id=CVE-2024-24746">CVE-2024-24746</a></h3>
+                        <p><strong>Denial of Service of NimBLE Bluetooth stack.</strong></p>
+                        <p>During the analysis of the log files from our fuzzing campaign,
+                            we observed instances where the device has terminated the connection by itself.
+                            Upon further investigation, we identified a recurring pattern associated with
+                            disconnections: transactions involving <code>Prepare Write Requests</code> that were not
+                            completed within a 30-second timeframe.</p>
+                        <p>Indeed, the BLE specification stipulates that "<em>A transaction not completed within 30 seconds shall time out. Such a transaction shall be considered to have failed, and the local higher layers shall be informed of this failure.</em>" <strong>[Spec Vol.3 Part.F 3.3.3]</strong>.
+                            NimBLE implements this feature with the <code>BLE_ATT_SVR_QUEUE_WRITE_TMO</code> timer.</p>
+                        <p>When the initiating device sends a <code>Prepare Write Request</code> to the BLE
+                            peripheral, the NimBLE stack starts a timer to remove later the pending write
+                            operations if no <code>Execute Write Request</code> or <code>Prepare Write Request</code> is received
+                            within the specified time frame. If the initiating device disconnects from the
+                            peripheral just before the timeout is reached, then the peripheral will be stuck
+                            in an infinite loop and therefore will not advertise anymore even if the current
+                            connection has been terminated. This lack of advertising prevents any new connections,
+                            resulting in the device remaining unconnectable until it is reset.</p>
+                        <p>The following schema shows an overview of what is happening:</p>
+                        <p><a href="resources/2024-09-18_ble-gatt-fuzzing/diagram_nimble.png">
+                            <img class="align-center" src="resources/2024-09-18_ble-gatt-fuzzing/diagram_nimble.png" alt="Denial of Service on NimBLE GATT server." width="60%" height="60%"></p>
+                        <p class="center-text">NimBLE Denial of Service</p>
+                        <p><br />
+                            </a></p>
+                        <h3>Sony headsets</h3>
+                        <p><strong>Denial of Service of Sony headsets.</strong></p>
+                        <p>We wanted to reproduce <a href="https://www.cve.org/CVERecord?id=CVE-2024-24746">CVE-2024-24746</a> on real-world devices. We opted for commonly available audio devices, including the <em>Sony WH-1000XM4</em>,
+                            <em>WF-1000XM4</em> and <em>WH-1000XM5</em>, as some colleagues had these models on hand. We successfully managed to crash all these devices by attacking their exposed
+                            BLE GATT servers in the same manner as we did with the NimBLE GATT server.</p>
+                        <p>In the following, we will detail the Denial of Service attack process only for the <em>Sony WH-1000XM4</em>. Similar processes have been used for the <em>WF-1000XM4</em> and <em>WH-1000XM5</em>.</p>
+                        <p>By default when used with Bluetooth Classic to listen to music, this device
+                            like many Bluetooth audio devices exposes a BLE GATT server typically
+                            labeled as LE_WH-1000XM4, featuring a range of characteristics with various
+                            permissions. Our goal was to find an enabled <code>Prepare Write Request</code> characteristic.
+                            We discovered the service with the 16-bit UUID FE2C, known as the <em>Fast Pair Service</em>, which is present
+                            on many Bluetooth audio devices. This service has characteristics with write
+                            permissions.</p>
+                        <p>We noticed that following a <code>Prepare Write Request</code> with
+                            an <code>Execute Write Request</code> caused the headset to disconnect by itself.
+                            At this point, it became evident that we encountered a scenario similar to
+                            the NimBLE DoS vulnerability.
+                            After sending a single random request before each connection drop, we identified an
+                            ATT PDU that consistently caused the device to crash after few try, a <code>Find By Type Value Request</code> with specific parameters.</p>
+                        <p>The following schema shows an overview of what is happening:</p>
+                        <p><a href="resources/2024-09-18_ble-gatt-fuzzing/diagram_xm4.png">
+                            <img class="align-center" src="resources/2024-09-18_ble-gatt-fuzzing/diagram_xm4.png" alt="Denial of Service on Sony WH_1000XM4." width="60%" height="60%"></p>
+                        <p class="center-text">Sony WH-1000XM4 Denial of Service</p>
+                        <p><br />
+                            </a></p>
+                        <p>A Proof of Concept for this vulnerability is provided on <a href="https://github.com/quarkslab/ble-gatt-fuzzing/tree/main/poc">Quarkslab's GitHub</a>.</p>
+                        <h2>Conclusion</h2>
+                        <p>In this blog post, we conducted an in-depth analysis of the BLE specification, leading us to elaborate and implement attack scenarios using the <em>WHAD</em> framework.
+                            Our research uncovered several non-conformities, bugs, and vulnerabilities across multiple BLE stacks, highlighting the need for more attention and improvement in these layers to enhance overall security.</p>
+                        <p>More detail can be found in the related <a href="https://github.com/quarkslab/conf-presentations/tree/master/Confs/Hardweario-NL-2024/2024-10-25-ble-gatt-fuzzing-paper-bboyer.pdf">paper</a>.</p>
+                        <h3>Disclosure timeline</h3>
+                        <p>Espressif</p>
+                        <ul>
+                            <li><strong>2023-12-05</strong> Quarkslab sent report via email.</li>
+                            <li><strong>2023-12-06</strong> Espressif acknowledged the report and asked details to be resent in plaintext.</li>
+                            <li><strong>2023-12-06</strong> Quarkslab sent the report in plaintext.</li>
+                            <li><strong>2023-12-07</strong> Espressif confirmed they received the report.</li>
+                            <li><strong>2023-12-21</strong> Espressif said it could reproduce the two bugs (DoS, OOB write) but they do not consider them vulnerabilities.</li>
+                            <li><strong>2023-12-23</strong> Quarkslab acknowledged the last email and asked if Espressif could elaborate on the criteria used to triage the bugs.</li>
+                            <li><strong>2023-12-29</strong> Espressif replied that impact of the first bug is just disconnection of the attached device, since it does not impact
+                                normal use nor leak user data it cannot be considered a vulnerability. The second bug (OOB write) is not present in Host
+                                or Controller code, it only affects example code and customers typically develop autonomously based on the API, so
+                                the impact is minimal.</li>
+                        </ul>
+                        <p><a href="https://www.cve.org/CVERecord?id=CVE-2024-24746">CVE-2024-24746</a></p>
+                        <ul>
+                            <li><strong>2024-01-19</strong> Quarkslab sent report via email to Security Team.</li>
+                            <li><strong>2024-01-21</strong> Apache MyNewt PMC acknowledged the report.</li>
+                            <li><strong>2024-01-25</strong> Apache developer confirmed the report and said they are working on a fix.</li>
+                            <li><strong>2024-02-06</strong> Quarkslab acknowledged the last email.</li>
+                            <li><strong>2024-02-07</strong> Apache MyNewt PMC said it had sent a proposed  patch for testing a week ago</li>
+                            <li><strong>2024-02-13</strong> Apache asked if Quarkslab could test the patch.</li>
+                            <li><strong>2024-02-14</strong> Quarsklab replied that they tested the patch and could not reproduce the bug.</li>
+                            <li><strong>2024-02-14</strong> Apache MyNewt PMC published a fix.</li>
+                            <li><strong>2024-04-05</strong> Apache MyNewt PMC assigned CVE ID CVE-2024-24746 to the vulnerability.</li>
+                            <li><strong>2024-04-05</strong> Quarkslab asked Apache to acknowledge Baptiste Boyer as reporter.</li>
+                            <li><strong>2024-10-25</strong> Blog post is published.</li>
+                        </ul>
+                        <p>Sony headsets</p>
+                        <ul>
+                            <li><strong>2024-07-22</strong> Quarkslab sent report via email to Sony.</li>
+                            <li><strong>2024-07-23</strong> Sony acknowledged the report.</li>
+                            <li><strong>2024-07-31</strong> Sony asked for more details to be able to reproduce the Denial of Service.</li>
+                            <li><strong>2024-08-05</strong> Quarkslab sent more details and Proof of Concept program.</li>
+                            <li><strong>2024-08-06</strong> Sony said it had reproduced the bug in one model but now on the other two and asked to Quarkslab to try with auto power off turned off</li>
+                            <li><strong>2024-08-06</strong> Quarkslab re-sent the PoC program, since Sony received it mangled in the prior email.</li>
+                            <li><strong>2024-08-12</strong> Quarkslab confirmed the bug persists with auto power off disabled and sent a WHAD-based fuzzer to Sony.</li>
+                            <li><strong>2024-08-19</strong> Sony they were working on identifying the root cause of the bug, asked where the research would be presented.</li>
+                            <li><strong>2024-09-09</strong> Sony said it is working on fixes and asked how to acknowledge the report. Also asked where will the research be presented.</li>
+                            <li><strong>2024-09-10</strong> Quarkslab replied asked to acknowledge Baptiste Boyer, and said he would present at the hardwear.io conference.</li>
+                            <li><strong>2024-09-12</strong> Sony asked the day of the presentation to coordinate publication on their web site, also requested the slides.</li>
+                            <li><strong>2024-09-13</strong> Quarkslab replied that it will provide the slides as a courtesy when they are ready.</li>
+                            <li><strong>2024-10-02</strong> Sony published a fix for <em>WH-1000XM5</em>.</li>
+                            <li><strong>2024-10-17</strong> Sony published fixes for <em>WH-1000XM4</em> and <em>WF-1000XM4</em>.</li>
+                            <li><strong>2024-10-21</strong> Quarkslab sent the slides of the hardwear.io talk to Sony.</li>
+                            <li><strong>2024-10-25</strong> Sony acknowledged Quarkslab for the vulnerabilities finding.</li>
+                            <li><strong>2024-10-25</strong> Blog post is published.</li>
+                        </ul>
+                    </div>
+                    <hr>
+                    <p>If you would like to learn more about our security audits and explore how we can help you, <a href="https://content.quarkslab.com/talk-to-our-experts-blog">get in touch with us</a>!</p>
+                    <!-- /.entry-content -->
+                </article>
+            </section>
+
+        </div>
+        <div class="col-sm-3 col-sm-pull-7" id="sidebar">
+            <aside>
+                <!-- Sidebar -->
+                <section class="well well-sm">
+                    <ul class="list-group list-group-flush">
+                        <!-- Sidebar/Quarkslab -->
+                        <li class="list-group-item">
+                            <h4>
+                                <i class="fa-solid fa-earth-europe fa-lg"></i>
+                                <a href="https://quarkslab.com">
+                                    Quarkslab's Website
+                                </a>
+                            </h4>
+                        </li>
+                        <!-- End Sidebar/Quarklab -->
+                        <!-- Sidebar/Social -->
+                        <li class="list-group-item">
+                            <h4>SOCIAL</h4>
+                            <ul class="list-group" id="social">
+                                <li class="list-group-item"><a class="text-capitalize" href="https://twitter.com/quarkslab"><i class="fa-brands fa-twitter fa-lg"></i> twitter</a></li>
+                                <li class="list-group-item"><a class="text-capitalize" href="https://infosec.exchange/@quarkslab"><i class="fa-brands fa-mastodon fa-lg"></i> mastodon</a></li>
+                                <li class="list-group-item"><a class="text-capitalize" href="https://github.com/quarkslab"><i class="fa-brands fa-github fa-lg"></i> github</a></li>
+                            </ul>
+                        </li>
+                        <!-- End Sidebar/Social -->
+
+                        <!-- Sidebar/Categories -->
+                        <li class="list-group-item">
+                            <h4>CATEGORIES</h4>
+                            <ul class="list-group" id="categories">
+                                <li class="list-group-item">
+                                    <a href="./category/android.html"><i>•</i>Android</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/automotive.html"><i>•</i>Automotive</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/blockchain.html"><i>•</i>Blockchain</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/challenge.html"><i>•</i>Challenge</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/containers.html"><i>•</i>Containers</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/cryptography.html"><i>•</i>Cryptography</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/exploitation.html"><i>•</i>Exploitation</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/file-formats.html"><i>•</i>File Formats</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/fuzzing.html"><i>•</i>Fuzzing</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/hardware.html"><i>•</i>Hardware</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/kernel-debugging.html"><i>•</i>Kernel Debugging</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/life-at-quarkslab.html"><i>•</i>Life at Quarkslab</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/math.html"><i>•</i>Math</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/pentest.html"><i>•</i>Pentest</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/program-analysis.html"><i>•</i>Program Analysis</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/programming.html"><i>•</i>Programming</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/reverse-engineering.html"><i>•</i>Reverse-Engineering</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/software.html"><i>•</i>Software</a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="./category/vulnerability.html"><i>•</i>Vulnerability</a>
+                                </li>
+                            </ul>
+                        </li>
+                        <!-- End Sidebar/Categories -->
+                    </ul>
+                </section>
+                <!-- End Sidebar -->            </aside>
+        </div>
+        <div class="col-sm-2">
+        </div>
+    </div>
+</div>
+<!-- End Content Container -->
+
+<footer>
+    <div class="container-fluid">
+        <hr>
+        <div class="row">
+            <div class="col-xs-10">&copy; 2024 Quarkslab
+                &middot; Powered by <a href="https://github.com/getpelican/pelican-themes/tree/master/pelican-bootstrap3" target="_blank">pelican-bootstrap3</a>,
+                <a href="http://docs.getpelican.com/" target="_blank">Pelican</a>,
+                <a href="http://getbootstrap.com" target="_blank">Bootstrap</a>         </div>
+            <div class="col-xs-2"><p class="pull-right"><i class="fa fa-arrow-up"></i> <a href="#">Back to top</a></p></div>
+        </div>
+    </div>
+</footer>
+<script src="./theme/js/jquery.min.js"></script>
+
+<!-- Include all compiled plugins (below), or include individual files as needed -->
+<script src="./theme/js/bootstrap.min.js"></script>
+
+<!-- Enable responsive features in IE8 with Respond.js (https://github.com/scottjehl/Respond) -->
+<script src="./theme/js/respond.min.js"></script>
+
+<script src="./static/js/misc.js"></script>
+
+
+
+</body>
+</html>

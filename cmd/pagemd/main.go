@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/LubyRuffy/pagemd/pkg/maindiv"
+	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
 	"log"
 )
 
@@ -11,27 +11,23 @@ func main() {
 	url := flag.String("url", "", "url to transform")
 	html := flag.String("html", "", "html to transform")
 	depth := flag.Bool("depth", false, "whether to care about depth")
+	headless := flag.Bool("headless", false, "whether headless when url fetch")
+	debug := flag.Bool("debug", false, "whether debug")
 	flag.Parse()
 
 	if *html == "" && *url == "" {
 		log.Fatal("url and html is empty")
 	}
 
-	htmlString, err := maindiv.FetchPageHTML(*url, true)
+	contentHtml, err := pagecontent.NewAnalysis(
+		pagecontent.WithDepthCare(*depth),
+		pagecontent.WithHeadless(*headless),
+		pagecontent.WithDebug(*debug),
+		pagecontent.WithURL(*url),
+		pagecontent.WithHTML(*html),
+	).ExtractMainContent()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	//htmlString, err := data.Load("b.html")
-	//htmlString, err := data.Load("a.html")
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-
-	node, err := maindiv.ExtractMainContent(htmlString, *depth)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Content found at: %s\n", node)
-	fmt.Printf("Content : %s\n", node.HTML)
+	fmt.Printf("Content : %s\n", contentHtml)
 }

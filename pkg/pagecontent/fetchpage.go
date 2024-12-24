@@ -1,4 +1,4 @@
-package maindiv
+package pagecontent
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 // ErrNotHtml is an error returned when the content type of the response is not HTML.
 var ErrNotHtml = errors.New("not html") // not html error
 
-// FetchPageHTMLHeadless fetches the HTML content of a page using headless browser.
+// fetchPageHTMLHeadless fetches the HTML content of a page using headless browser.
 //
 // Parameters:
 //   - u: The URL of the page to be fetched.
@@ -23,7 +23,7 @@ var ErrNotHtml = errors.New("not html") // not html error
 // Returns:
 //   - string: The HTML content of the page.
 //   - error: An error if the fetching process fails.
-func FetchPageHTMLHeadless(u string, debug bool) (string, error) {
+func fetchPageHTMLHeadless(u string, debug bool) (string, error) {
 	var browser *rod.Browser
 	if debug {
 		// Headless runs the browser on foreground, you can also use flag "-rod=show"
@@ -58,7 +58,7 @@ func FetchPageHTMLHeadless(u string, debug bool) (string, error) {
 	return page.HTML()
 }
 
-// FetchPageHTML fetches the HTML content of a page from the given URL.
+// fetchPageHTML fetches the HTML content of a page from the given URL.
 //
 // Parameters:
 //   - u: The URL of the page to be fetched.
@@ -67,10 +67,10 @@ func FetchPageHTMLHeadless(u string, debug bool) (string, error) {
 // Returns:
 //   - string: The HTML content of the page.
 //   - error: An error if the fetching process fails.
-func FetchPageHTML(u string, headless bool) (string, error) {
+func fetchPageHTML(u string, headless bool, debug bool) (string, error) {
 	// Implement fetching the page content from the given URL
 	if headless {
-		return FetchPageHTMLHeadless(u, true)
+		return fetchPageHTMLHeadless(u, debug)
 	}
 
 	resp, err := http.Get(u)
