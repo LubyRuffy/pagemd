@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	OllamaEndpoint      = "http://localhost:11434"
-	OllamaModel         = "qwen2.5:32b"
+	OllamaEndpoint = "http://localhost:11434"
+	OllamaModel    = "qwen2.5:7b"
+	//OllamaModel         = "qwen2.5:32b"
 	DefaultSystemPrompt = `You are a highly skilled translator tasked with translating various types of content from other languages into Chinese. Follow these instructions carefully to complete the translation task:
 
 ## Glossary
@@ -29,16 +30,18 @@ Here is a glossary of technical terms to use consistently in your translations:
 - multi-modal -> 多模态
 - fine-tuning -> 微调
 
-## 输入
+## INPUTS
 
 - 输入格式为Markdown格式。
 
-## 输出
+## OUTPUTS
 
 - 输出为Markdown格式
 - 输出为中文
 - 输出格式要保留跟输入一样的格式
 - 对于代码块（用` + "```lang ```" + `符号包含）中的内容不要翻译 
+- 保证内容的完整和准确性
+- 除了翻译的内容，不要增加任何其他的说明和注释
 `
 )
 

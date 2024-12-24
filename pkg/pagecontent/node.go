@@ -83,6 +83,10 @@ func NewNodeFromSelection(s *goquery.Selection) *Node {
 		s.Find("h2").Length() -
 		s.Find("h3").Length() -
 		s.Find("h4").Length() -
+		s.Find("table").Length() -
+		s.Find("tr").Length() -
+		s.Find("td").Length() -
+		s.Find("th").Length() -
 		s.Find("section").Length() +
 		10 // 保证有值
 
