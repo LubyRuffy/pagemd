@@ -15,6 +15,9 @@ type Config struct {
 	debug     bool   // 是否调试模式，比如headless下显示浏览器
 	html      string // HTML内容
 	url       string // 网页URL
+
+	onMainNodeFound func(node *Node)         // 提取了正文节点的回调
+	onHtmlFetched   func(htmlContent string) // 请求url获取了html时的回调
 }
 
 type ConfigOpt func(*Config)
@@ -47,11 +50,22 @@ func WithURL(url string) ConfigOpt {
 		cfg.url = url
 	}
 }
+func WithOnHtmlFetched(onHtmlFetched func(htmlContent string)) ConfigOpt {
+	return func(cfg *Config) {
+		cfg.onHtmlFetched = onHtmlFetched
+	}
+}
+func WithOnMainNodeFound(onMainNodeFound func(node *Node)) ConfigOpt {
+	return func(cfg *Config) {
+		cfg.onMainNodeFound = onMainNodeFound
+	}
+}
 
 type Analysis struct {
 	cfg *Config
 }
 
+// ExtractMainContent 提取一个网页的正文内容，去除不相关的信息
 func (a *Analysis) ExtractMainContent() (string, string, error) {
 	htmlContent := a.cfg.html
 
@@ -65,12 +79,14 @@ func (a *Analysis) ExtractMainContent() (string, string, error) {
 		if err != nil {
 			return "", "", err
 		}
+		a.onHtmlFetched(htmlContent)
 	}
 
 	node, err := extractMainContent(htmlContent, a.cfg.depthCare)
 	if err != nil {
 		return "", "", err
 	}
+	a.onMainNodeFound(node)
 
 	markdown, err := htmltomarkdown.ConvertString(node.HTML,
 		converter.WithDomain(a.cfg.url))
@@ -79,6 +95,18 @@ func (a *Analysis) ExtractMainContent() (string, string, error) {
 	}
 
 	return node.HTML, markdown, err
+}
+
+func (a *Analysis) onMainNodeFound(node *Node) {
+	if a.cfg.onMainNodeFound != nil {
+		a.cfg.onMainNodeFound(node)
+	}
+}
+
+func (a *Analysis) onHtmlFetched(htmlContent string) {
+	if a.cfg.onHtmlFetched != nil {
+		a.cfg.onHtmlFetched(htmlContent)
+	}
 }
 
 func NewAnalysis(opts ...ConfigOpt) *Analysis {

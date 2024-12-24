@@ -27,13 +27,20 @@ func main() {
 		pagecontent.WithDebug(*debug),
 		pagecontent.WithURL(*url),
 		pagecontent.WithHTML(*html),
+		pagecontent.WithOnMainNodeFound(func(node *pagecontent.Node) {
+			log.Println("found main node, size:", len(node.HTML))
+		}),
+		pagecontent.WithOnHtmlFetched(func(htmlContent string) {
+			log.Println("fetched html, size:", len(htmlContent))
+		}),
 	).ExtractMainContent()
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	// fmt.Printf("Content : %s\n%s", contentHtml, markdown)
 	if *output == "" {
-		fmt.Printf(markdown)
+		fmt.Println(markdown)
 	} else {
 		if err = os.WriteFile("out.md", []byte(markdown), 0644); err != nil {
 			log.Fatal(err)
