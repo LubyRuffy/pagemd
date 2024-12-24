@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"log"
 	"math"
 	"strings"
 )
@@ -41,8 +42,8 @@ func (n *Node) String() string {
 // If depthCare is true, the depth of the node is also considered in the scoring.
 func (n *Node) CalculateScore(depthCare bool) float64 {
 	densityScore := n.Density
-	lengthScore := math.Log(float64(n.TextLength)) / 5
-	n.score = densityScore * lengthScore
+	lengthScore := math.Log2(float64(n.TextLength))
+	n.score = densityScore + lengthScore
 	if depthCare {
 		depthScore := math.Log(float64(n.Depth + 1))
 		n.score = n.score * depthScore
@@ -82,14 +83,11 @@ func NewNodeFromSelection(s *goquery.Selection) *Node {
 		s.Find("h2").Length() -
 		s.Find("h3").Length() -
 		s.Find("h4").Length() -
-		s.Find("section").Length()
+		s.Find("section").Length() +
+		10 // 保证有值
 
 	// Density is the ratio of text length to non-text child node count.
-	if node.NodeCount > 0 {
-		node.Density = float64(node.TextLength) / float64(node.NodeCount)
-	} else {
-		node.Density = 1
-	}
+	node.Density = float64(node.TextLength) / float64(node.NodeCount)
 
 	return node
 }
@@ -139,7 +137,7 @@ func getSelector(s *goquery.Selection) string {
 // extractMainContent 从 HTML 内容中提取包含主要内容的节点
 //
 // 提取出 HTML 内容中的主要内容，并返回主要内容的节点和错误信息。
-func extractMainContent(htmlContent string, depthCare bool) (*Node, error) {
+func extractMainContent(htmlContent string, depthCare bool, debug bool) (*Node, error) {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader([]byte(htmlContent)))
 	if err != nil {
 		return nil, err
@@ -163,7 +161,11 @@ func extractMainContent(htmlContent string, depthCare bool) (*Node, error) {
 		if score > maxScore {
 			maxScore = score
 			bestNode = node
-			//log.Println(score, node)
+
+			if debug {
+				log.Println(score, node)
+			}
+
 		}
 	}
 

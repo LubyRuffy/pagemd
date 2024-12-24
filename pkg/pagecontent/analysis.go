@@ -83,7 +83,7 @@ func (a *Analysis) ExtractMainContent() (string, string, error) {
 		a.onHtmlFetched(htmlContent)
 	}
 
-	node, err := extractMainContent(htmlContent, a.cfg.depthCare)
+	node, err := extractMainContent(htmlContent, a.cfg.depthCare, a.cfg.debug)
 	if err != nil {
 		return "", "", err
 	}

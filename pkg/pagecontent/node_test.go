@@ -124,15 +124,16 @@ func Test_extractMainContent(t *testing.T) {
 	testF := func(f string, s string) {
 		h, err := os.ReadFile(filepath.Join("testdata", f))
 		assert.NoError(t, err)
-		node, err := extractMainContent(string(h), false)
+		node, err := extractMainContent(string(h), false, true)
 		assert.NoError(t, err)
-		assert.Equal(t, node.selector, s)
+		assert.Equal(t, s, node.selector)
 	}
 
-	//testF("a.html", "#content > article > div.entry-content")
-	//testF("b.html", "#tinymce-editor > div")
-	//testF("c.html", "html > body > main > section.section.pt-7 > div.container > div.row.justify-center > article.lg\\:col-7 > div.content.mb-10")
+	testF("a.html", "#content > article > div.entry-content")
+	testF("b.html", "#tinymce-editor > div")
+	testF("c.html", "html > body > main > section.section.pt-7 > div.container > div.row.justify-center > article.lg\\:col-7 > div.content.mb-10")
 	testF("d.html", "html.h-full.overflow-y-scroll > body.antialiased.min-h-screen.w-full.m-0.flex.flex-col > main.flex-grow > article.mx-auto.flex.flex-1.max-w-2xl.w-full.flex-col.space-y-3.px-6.py-16.md\\:px-0")
+	testF("e.html", `html > body > main > section.section.pt-7 > div.container > div.row.justify-center > article.lg\:col-7 > div.content.mb-10`)
 }
 
 func TestGetSelector(t *testing.T) {
