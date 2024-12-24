@@ -148,7 +148,7 @@ func extractMainContent(htmlContent string, depthCare bool) (*Node, error) {
 	var bestNode *Node
 	var maxScore float64
 
-	doc.Find("div").Each(func(i int, s *goquery.Selection) {
+	extract := func(i int, s *goquery.Selection) {
 		if len(s.Text()) < MinContentText {
 			return
 		}
@@ -165,7 +165,10 @@ func extractMainContent(htmlContent string, depthCare bool) (*Node, error) {
 			bestNode = node
 			//log.Println(score, node)
 		}
-	})
+	}
+
+	doc.Find("div").Each(extract)
+	doc.Find("article").Each(extract)
 
 	if bestNode != nil {
 		return bestNode, nil

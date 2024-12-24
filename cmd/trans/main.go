@@ -1,17 +1,15 @@
 package main
 
 import (
-	"flag"
+	"context"
 	"fmt"
+	"github.com/LubyRuffy/pagemd/pkg/aitrans"
 	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
 	"log"
-	"os"
 )
 
 func main() {
-	output := flag.String("output", "", "output of markdown")
-
-	_, markdown, err := pagecontent.NewFromFlags(
+	_, md, err := pagecontent.NewFromFlags(
 		pagecontent.WithOnMainNodeFound(func(node *pagecontent.Node) {
 			log.Println("found main node, size:", len(node.HTML))
 		}),
@@ -20,15 +18,15 @@ func main() {
 		}),
 	).ExtractMainContent()
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
-	// fmt.Printf("Content : %s\n%s", contentHtml, markdown)
-	if *output == "" {
-		fmt.Println(markdown)
-	} else {
-		if err = os.WriteFile("out.md", []byte(markdown), 0644); err != nil {
-			log.Fatal(err)
-		}
-	}
+	log.Println("try to translate...")
+
+	a := aitrans.New()
+	a.TranslateToChinese(context.Background(),
+		md,
+		func(s string) {
+			fmt.Printf("%s", s)
+		})
 }

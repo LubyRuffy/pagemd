@@ -2,6 +2,7 @@ package pagecontent
 
 import (
 	"errors"
+	"flag"
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/converter"
 	"log"
@@ -117,4 +118,25 @@ func NewAnalysis(opts ...ConfigOpt) *Analysis {
 	return &Analysis{
 		cfg: cfg,
 	}
+}
+
+func NewFromFlags(opts ...ConfigOpt) *Analysis {
+	url := flag.String("url", "", "url to transform")
+	html := flag.String("html", "", "html to transform")
+	depth := flag.Bool("depth", false, "whether to care about depth")
+	headless := flag.Bool("headless", false, "whether headless when url fetch")
+	debug := flag.Bool("debug", false, "whether debug")
+	flag.Parse()
+
+	if *html == "" && *url == "" {
+		log.Fatal("url and html is empty")
+	}
+
+	opts = append(opts, WithDepthCare(*depth),
+		WithHeadless(*headless),
+		WithDebug(*debug),
+		WithURL(*url),
+		WithHTML(*html))
+
+	return NewAnalysis(opts...)
 }
