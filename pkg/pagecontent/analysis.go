@@ -1,6 +1,11 @@
 package pagecontent
 
-import "errors"
+import (
+	"errors"
+	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
+	"github.com/JohannesKaufmann/html-to-markdown/v2/converter"
+	"log"
+)
 
 var ErrNoURLProvided = errors.New("URL must be provided")
 
@@ -47,26 +52,33 @@ type Analysis struct {
 	cfg *Config
 }
 
-func (a *Analysis) ExtractMainContent() (string, error) {
+func (a *Analysis) ExtractMainContent() (string, string, error) {
 	htmlContent := a.cfg.html
 
 	if htmlContent == "" {
 		if a.cfg.url == "" {
-			return "", ErrNoURLProvided
+			return "", "", ErrNoURLProvided
 		}
 
 		var err error
 		htmlContent, err = fetchPageHTML(a.cfg.url, a.cfg.headless, a.cfg.debug)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
 	node, err := extractMainContent(htmlContent, a.cfg.depthCare)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return node.HTML, err
+
+	markdown, err := htmltomarkdown.ConvertString(node.HTML,
+		converter.WithDomain(a.cfg.url))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return node.HTML, markdown, err
 }
 
 func NewAnalysis(opts ...ConfigOpt) *Analysis {

@@ -2,10 +2,20 @@ package pagecontent
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"math"
 	"strings"
+)
+
+const (
+	MinContentText = 200
+	MinDensity     = 10
+)
+
+var (
+	ErrHasNotContent = errors.New("has not content")
 )
 
 // Node represents a div node with various attributes used for scoring and analysis.
@@ -139,11 +149,15 @@ func extractMainContent(htmlContent string, depthCare bool) (*Node, error) {
 	var maxScore float64
 
 	doc.Find("div").Each(func(i int, s *goquery.Selection) {
-		if len(s.Text()) < 100 {
+		if len(s.Text()) < MinContentText {
 			return
 		}
 
 		node := NewNodeFromSelection(s)
+		if node.Density < MinDensity {
+			return
+		}
+
 		score := node.CalculateScore(depthCare)
 
 		if score > maxScore {
@@ -156,5 +170,6 @@ func extractMainContent(htmlContent string, depthCare bool) (*Node, error) {
 	if bestNode != nil {
 		return bestNode, nil
 	}
-	return nil, nil
+
+	return nil, ErrHasNotContent
 }
