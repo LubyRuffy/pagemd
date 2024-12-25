@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
+	"unicode/utf8"
 )
 
 type TitleAuthorDate struct {
@@ -51,12 +52,13 @@ func getAccurateText(texts []string) string {
 	if len(texts) == 1 {
 		return texts[0]
 	}
+	texts = texts[:min(5, len(texts))]
 
 	mostFrequentTexts := make(map[string]int, 0)
 	for i := 0; i < len(texts); i++ {
 		for j := i + 1; j < len(texts); j++ {
 			text := longestCommonSubstring(texts[i], texts[j])
-			if text == "" {
+			if utf8.RuneCountInString(strings.Trim(text, " \r\t\n")) < 3 {
 				continue
 			}
 			if v, ok := mostFrequentTexts[text]; !ok {
@@ -131,7 +133,7 @@ func ExtractTitleAuthorDate(htmlContent string) (*TitleAuthorDate, error) {
 	doc.Find("*").Each(func(i int, selection *goquery.Selection) {
 		switch strings.ToLower(goquery.NodeName(selection)) {
 		case "title":
-			if v := trim(selection.Text()); v != "" {
+			if v := trim(selection.Text()); v != "" && !selection.Parent().Is("symbol") {
 				titles = append(titles, v)
 			}
 		case "meta":
