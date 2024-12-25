@@ -44,42 +44,42 @@ func longestCommonSubstring(s1, s2 string) string {
 }
 
 // 从多个候选标题中提取最准确的标题
-func getAccurateTitle(titles []string) string {
-	if len(titles) == 0 {
+func getAccurateText(texts []string) string {
+	if len(texts) == 0 {
 		return ""
 	}
-	if len(titles) == 1 {
-		return titles[0]
+	if len(texts) == 1 {
+		return texts[0]
 	}
 
-	mostFrequentTitles := make(map[string]int, 0)
-	for i := 1; i < len(titles); i++ {
-		for j := i + 1; j < len(titles); j++ {
-			title := longestCommonSubstring(titles[i], titles[j])
-			if title == "" {
+	mostFrequentTexts := make(map[string]int, 0)
+	for i := 0; i < len(texts); i++ {
+		for j := i + 1; j < len(texts); j++ {
+			text := longestCommonSubstring(texts[i], texts[j])
+			if text == "" {
 				continue
 			}
-			if v, ok := mostFrequentTitles[title]; ok {
-				mostFrequentTitles[title] = 1
+			if v, ok := mostFrequentTexts[text]; !ok {
+				mostFrequentTexts[text] = 1
 			} else {
-				mostFrequentTitles[title] = v + 1
+				mostFrequentTexts[text] = v + 1
 			}
 
 		}
 	}
 
-	var mostFrequentTitleCount int
-	var mostFrequentTitle string
-	for k, v := range mostFrequentTitles {
-		if v > mostFrequentTitleCount {
-			mostFrequentTitle = k
-			mostFrequentTitleCount = v
-		} else if len(k) > len(mostFrequentTitle) {
-			mostFrequentTitle = k
-			mostFrequentTitleCount = v
+	var mostFrequentTextCount int
+	var mostFrequentText string
+	for k, v := range mostFrequentTexts {
+		if v > mostFrequentTextCount {
+			mostFrequentText = k
+			mostFrequentTextCount = v
+		} else if len(k) > len(mostFrequentText) {
+			mostFrequentText = k
+			mostFrequentTextCount = v
 		}
 	}
-	return mostFrequentTitle
+	return mostFrequentText
 }
 
 // ExtractTitleAuthorDate 提取title，author，date
@@ -127,6 +127,7 @@ func ExtractTitleAuthorDate(htmlContent string) (*TitleAuthorDate, error) {
 	}
 
 	var titles []string
+	var authors []string
 	doc.Find("*").Each(func(i int, selection *goquery.Selection) {
 		switch strings.ToLower(goquery.NodeName(selection)) {
 		case "title":
@@ -134,13 +135,26 @@ func ExtractTitleAuthorDate(htmlContent string) (*TitleAuthorDate, error) {
 				titles = append(titles, v)
 			}
 		case "meta":
+			// title
 			if selection.AttrOr("property", "") == "og:title" ||
 				selection.AttrOr("property", "") == "twitter:title" ||
 				selection.AttrOr("name", "") == "og:title" ||
 				selection.AttrOr("name", "") == "twitter:title" {
-
 				if v := trim(selection.AttrOr("content", "")); v != "" {
 					titles = append(titles, v)
+				}
+			}
+			// author
+			if selection.AttrOr("property", "") == "og:author" ||
+				selection.AttrOr("property", "") == "author" ||
+				selection.AttrOr("property", "") == "twitter:author" ||
+				selection.AttrOr("property", "") == "article:author" ||
+				selection.AttrOr("name", "") == "og:author" ||
+				selection.AttrOr("name", "") == "author" ||
+				selection.AttrOr("name", "") == "article:author" ||
+				selection.AttrOr("name", "") == "twitter:author" {
+				if v := trim(selection.AttrOr("content", "")); v != "" {
+					authors = append(authors, v)
 				}
 			}
 		case "article":
@@ -155,10 +169,20 @@ func ExtractTitleAuthorDate(htmlContent string) (*TitleAuthorDate, error) {
 					titles = append(titles, v)
 				}
 			}
+			if selection.HasClass("author") {
+				if v := trim(selection.Text()); v != "" {
+					authors = append(authors, v)
+				}
+			}
 		case "span":
 			if selection.HasClass("title") || selection.HasClass("title-span") {
 				if v := trim(selection.Text()); v != "" {
 					titles = append(titles, v)
+				}
+			}
+			if selection.HasClass("author") || selection.HasClass("author-span") {
+				if v := trim(selection.Text()); v != "" {
+					authors = append(authors, v)
 				}
 			}
 		case "a":
@@ -167,12 +191,16 @@ func ExtractTitleAuthorDate(htmlContent string) (*TitleAuthorDate, error) {
 					titles = append(titles, v)
 				}
 			}
+			if selection.HasClass("author") {
+				if v := trim(selection.Text()); v != "" {
+					authors = append(authors, v)
+				}
+			}
 		}
 	})
 
-	bestTitle := getAccurateTitle(titles)
-
 	return &TitleAuthorDate{
-		Title: bestTitle,
+		Title:  getAccurateText(titles),
+		Author: getAccurateText(authors),
 	}, nil
 }
