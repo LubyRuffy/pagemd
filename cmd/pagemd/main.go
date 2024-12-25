@@ -11,7 +11,7 @@ import (
 func main() {
 	output := flag.String("output", "", "output of markdown")
 
-	_, markdown, err := pagecontent.NewFromFlags(
+	ci, err := pagecontent.NewFromFlags(
 		pagecontent.WithOnMainNodeFound(func(node *pagecontent.Node) {
 			log.Println("found main node, size:", len(node.HTML))
 		}),
@@ -25,9 +25,9 @@ func main() {
 
 	// fmt.Printf("Content : %s\n%s", contentHtml, markdown)
 	if *output == "" {
-		fmt.Println(markdown)
+		fmt.Println(ci.ContentMarkdown)
 	} else {
-		if err = os.WriteFile("out.md", []byte(markdown), 0644); err != nil {
+		if err = os.WriteFile("out.md", []byte(ci.ContentMarkdown), 0644); err != nil {
 			log.Fatal(err)
 		}
 	}

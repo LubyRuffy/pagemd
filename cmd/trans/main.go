@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	_, md, err := pagecontent.NewFromFlags(
+	ci, err := pagecontent.NewFromFlags(
 		pagecontent.WithOnMainNodeFound(func(node *pagecontent.Node) {
 			log.Println("found main node, size:", len(node.HTML))
 		}),
@@ -25,7 +25,7 @@ func main() {
 
 	a := aitrans.New()
 	a.TranslateToChinese(context.Background(),
-		md,
+		ci.ContentMarkdown,
 		func(s string) {
 			fmt.Printf("%s", s)
 		})

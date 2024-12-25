@@ -66,26 +66,32 @@ type Analysis struct {
 	cfg *Config
 }
 
+type ContentInfo struct {
+	HTML            string
+	ContentHTML     string
+	ContentMarkdown string
+}
+
 // ExtractMainContent 提取一个网页的正文内容，去除不相关的信息
-func (a *Analysis) ExtractMainContent() (string, string, error) {
+func (a *Analysis) ExtractMainContent() (*ContentInfo, error) {
 	htmlContent := a.cfg.html
 
 	if htmlContent == "" {
 		if a.cfg.url == "" {
-			return "", "", ErrNoURLProvided
+			return nil, ErrNoURLProvided
 		}
 
 		var err error
 		htmlContent, err = fetchPageHTML(a.cfg.url, a.cfg.headless, a.cfg.debug)
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
 		a.onHtmlFetched(htmlContent)
 	}
 
 	node, err := extractMainContent(htmlContent, a.cfg.depthCare, a.cfg.debug)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	a.onMainNodeFound(node)
 
@@ -95,7 +101,11 @@ func (a *Analysis) ExtractMainContent() (string, string, error) {
 		log.Fatal(err)
 	}
 
-	return node.HTML, markdown, err
+	return &ContentInfo{
+		HTML:            htmlContent,
+		ContentHTML:     node.HTML,
+		ContentMarkdown: markdown,
+	}, nil
 }
 
 func (a *Analysis) onMainNodeFound(node *Node) {
