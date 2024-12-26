@@ -42,6 +42,7 @@ Here is a glossary of technical terms to use consistently in your translations:
 - 对于代码块（用` + "```lang ```" + `符号包含）中的内容不要翻译 
 - 保证内容的完整和准确性
 - 除了翻译的内容，不要增加任何其他的说明和注释
+- 如果输入本身的语言就是中文，你就直接输出“无需翻译”
 `
 )
 

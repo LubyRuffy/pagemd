@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/LubyRuffy/pagemd/pkg/aitrans"
 	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
@@ -20,6 +21,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	d, _ := json.Marshal(ci)
+	log.Println(string(d))
 
 	log.Println("try to translate...")
 

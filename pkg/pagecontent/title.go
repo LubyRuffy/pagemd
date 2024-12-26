@@ -10,9 +10,9 @@ import (
 )
 
 type TitleAuthorDate struct {
-	Author string
-	Title  string
-	Date   string
+	Author string `json:"author"`
+	Title  string `json:"title"`
+	Date   string `json:"date"`
 }
 
 // 查找两个字符串的最长公共子串

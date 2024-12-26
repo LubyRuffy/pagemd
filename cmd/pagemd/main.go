@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
@@ -23,9 +24,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	d, _ := json.Marshal(ci)
+	log.Println(string(d))
+
 	// fmt.Printf("Content : %s\n%s", contentHtml, markdown)
 	if *output == "" {
-		fmt.Println(ci.ContentMarkdown)
+		fmt.Println(ci.TitleAuthorDate, ci.ContentMarkdown)
 	} else {
 		if err = os.WriteFile("out.md", []byte(ci.ContentMarkdown), 0644); err != nil {
 			log.Fatal(err)
