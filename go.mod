@@ -5,8 +5,10 @@ go 1.23.4
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.2.1
 	github.com/PuerkitoBio/goquery v1.10.0
+	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/go-rod/rod v0.116.2
 	github.com/ollama/ollama v0.5.4
+	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 )
 
