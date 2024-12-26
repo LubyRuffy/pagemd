@@ -29,9 +29,9 @@ func main() {
 
 	// fmt.Printf("Content : %s\n%s", contentHtml, markdown)
 	if *output == "" {
-		fmt.Println(ci.TitleAuthorDate, ci.ContentMarkdown)
+		fmt.Println(ci.TitleAuthorDate, ci.Markdown)
 	} else {
-		if err = os.WriteFile("out.md", []byte(ci.ContentMarkdown), 0644); err != nil {
+		if err = os.WriteFile("out.md", []byte(ci.Markdown), 0644); err != nil {
 			log.Fatal(err)
 		}
 	}

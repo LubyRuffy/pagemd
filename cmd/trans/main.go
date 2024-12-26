@@ -29,7 +29,7 @@ func main() {
 
 	a := aitrans.New()
 	a.TranslateToChinese(context.Background(),
-		ci.ContentMarkdown,
+		ci.Markdown,
 		func(s string) {
 			fmt.Printf("%s", s)
 		})

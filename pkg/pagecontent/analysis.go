@@ -68,10 +68,10 @@ type Analysis struct {
 
 type ContentInfo struct {
 	*TitleAuthorDate
-	URL             string `json:"url"`
-	HTML            string `json:"html"`
-	ContentHTML     string `json:"content_html"`
-	ContentMarkdown string `json:"content_markdown"`
+	URL string `json:"url"`
+	//HTML            string `json:"html"`
+	//ContentHTML     string `json:"content_html"`
+	Markdown string `json:"markdown"`
 }
 
 // ExtractMainContent 提取一个网页的正文内容，去除不相关的信息
@@ -111,9 +111,9 @@ func (a *Analysis) ExtractMainContent() (*ContentInfo, error) {
 	return &ContentInfo{
 		TitleAuthorDate: tad,
 		URL:             a.cfg.url,
-		HTML:            htmlContent,
-		ContentHTML:     node.HTML,
-		ContentMarkdown: markdown,
+		//HTML:            htmlContent,
+		//ContentHTML:     node.HTML,
+		Markdown: markdown,
 	}, nil
 }
 

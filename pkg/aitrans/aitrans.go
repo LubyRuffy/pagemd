@@ -2,7 +2,6 @@ package aitrans
 
 import (
 	"context"
-	"fmt"
 	"github.com/ollama/ollama/api"
 	"net/http"
 	"net/url"
@@ -57,6 +56,7 @@ var (
 )
 
 func (a *AiTranslator) TranslateToChinese(ctx context.Context, md string, onData func(string)) (string, error) {
+	result := ""
 	err := a.ollamaClient.Chat(ctx, &api.ChatRequest{
 		Model: OllamaModel,
 		Messages: []api.Message{
@@ -74,13 +74,16 @@ func (a *AiTranslator) TranslateToChinese(ctx context.Context, md string, onData
 			"num_ctx": 102400,
 		},
 	}, func(resp api.ChatResponse) error {
-		fmt.Print(resp.Message.Content)
+		result += resp.Message.Content
+		if onData != nil {
+			onData(resp.Message.Content)
+		}
 		return nil
 	})
 	if err != nil {
 		return "", err
 	}
-	return "", nil
+	return result, nil
 }
 
 //func (a *AiTranslator) TranslateToChinese(ctx context.Context, md string, onData func(string)) (string, error) {
