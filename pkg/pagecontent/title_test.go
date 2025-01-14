@@ -9,7 +9,7 @@ import (
 
 func TestExtractTitleAuthorDate(t *testing.T) {
 	testF := func(f string, title string, author string, date string) {
-		h, err := os.ReadFile(filepath.Join("testdata", f))
+		h, err := os.ReadFile(filepath.Join("../../testdata", f))
 		assert.NoError(t, err)
 		tad, err := ExtractTitleAuthorDate(string(h))
 		assert.NoError(t, err)

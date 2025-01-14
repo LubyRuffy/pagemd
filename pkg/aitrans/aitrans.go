@@ -46,13 +46,11 @@ Here is a glossary of technical terms to use consistently in your translations:
 )
 
 type AiTranslator struct {
-	//ollamaClient *openai.Client
 	ollamaClient *api.Client
 }
 
 var (
-	False = false
-	True  = true
+	True = true
 )
 
 func (a *AiTranslator) TranslateToChinese(ctx context.Context, md string, onData func(string)) (string, error) {
@@ -86,64 +84,10 @@ func (a *AiTranslator) TranslateToChinese(ctx context.Context, md string, onData
 	return result, nil
 }
 
-//func (a *AiTranslator) TranslateToChinese(ctx context.Context, md string, onData func(string)) (string, error) {
-//	stream, err := a.ollamaClient.CreateChatCompletionStream(ctx,
-//		openai.ChatCompletionRequest{
-//			Model: OllamaModel, // Use the model parameter
-//			Messages: []openai.ChatCompletionMessage{
-//				{Role: openai.ChatMessageRoleSystem, Content: DefaultSystemPrompt},
-//				{Role: openai.ChatMessageRoleUser, Content: md},
-//			},
-//			MaxTokens:           102400,
-//			MaxCompletionTokens: 102400,
-//			//ResponseFormat: &openai.ChatCompletionResponseFormat{
-//			//	Type: openai.ChatCompletionResponseFormatTypeJSONObject,
-//			//},
-//		},
-//	)
-//	if err != nil {
-//		return "", err
-//	}
-//	defer stream.Close()
-//
-//	var output string
-//_out:
-//	for {
-//		response, err := stream.Recv()
-//		if errors.Is(err, io.EOF) {
-//			//log.Println("stream closed")
-//			break
-//		}
-//		if err != nil {
-//			return "", err
-//		}
-//		//log.Println(response)
-//		for _, choice := range response.Choices {
-//			//fmt.Printf("%s", choice.Delta.Content)
-//			output += choice.Delta.Content
-//			onData(choice.Delta.Content)
-//
-//			if choice.FinishReason != "" {
-//				//log.Println(choice.FinishReason)
-//				break _out
-//			}
-//		}
-//
-//	}
-//
-//	return output, nil
-//}
-
 func New() *AiTranslator {
-	// Initialize the OpenAI client with your API key
-	//openaiConfig := openai.DefaultConfig("ollama-token")
-	//openaiConfig.BaseURL = fmt.Sprintf("%s/v1", OllamaEndpoint)
-	//client := openai.NewClientWithConfig(openaiConfig)
-
 	u, _ := url.Parse(OllamaEndpoint)
 	client := api.NewClient(u, http.DefaultClient)
 	ait := &AiTranslator{
-		//ollamaClient: client,
 		ollamaClient: client,
 	}
 	return ait
