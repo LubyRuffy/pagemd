@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Fetcher</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css"></link>
+    <script src="https://unpkg.com/vue@3"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/md-editor-v3@5.2.2/lib/style.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/md-editor-v3/lib/umd/index.min.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+        }
+        .left, .right {
+            flex: 1;
+            padding: 20px;
+            box-sizing: border-box; /* 确保padding不会影响宽度和高度 */
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .right {
+            display: flex;
+            flex-direction: column;
+        }
+        .right .md-editor-v3 {
+            flex: 1;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            resize: none;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box; /* 确保padding不会影响宽度和高度 */
+        }
+        .input-container {
+            margin-bottom: 20px; /* 添加间距 */
+            display: flex; // 修改: 使用flex布局
+            align-items: center; // 修改: 垂直居中对齐
+        }
+    </style>
+</head>
+<body>
+<div id="app" style="height: 100%; display: flex; flex-direction: column;">
+    <div class="input-container">
+        <el-input v-model="url" placeholder="Enter URL" style="width: 300px;"></el-input>
+        <el-button @click="fetchURL">Fetch</el-button>
+    </div>
+    <div class="container">
+        <div class="left">
+            <iframe ref="contentFrame"></iframe> // 修改: 添加ref引用
+        </div>
+        <div class="right">
+            <md-editor-v3 v-model="markdownContent" class="md-editor-v3" />
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref } = Vue;
+    const { ElInput, ElButton } = ElementPlus;
+
+    createApp({
+        components: {
+            ElInput,
+            ElButton,
+        },
+        setup() {
+            const url = ref('https://www.freebuf.com/vuls/421518.html'); // 设置默认URL
+            const markdownContent = ref('');
+            const contentFrame = ref(null); // 修改: 添加ref引用
+
+            const fetchURL = async () => {
+                if (url.value) {
+                    // 加载iframe
+                    contentFrame.value.src = url.value; // 修改: 通过ref引用设置src
+
+                    // 发送POST请求
+                    try {
+                        const response = await fetch('/api/v1/fetch', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ url: url.value })
+                        });
+                        const data = await response.json();
+                        markdownContent.value = '# '+data.title+"\n\n"+data.markdown;
+                    } catch (error) {
+                        console.error('Error fetching URL content:', error);
+                    }
+                }
+            };
+
+            return {
+                url,
+                markdownContent,
+                fetchURL,
+                contentFrame // 修改: 返回ref引用
+            };
+        }
+    }).use(MdEditorV3.MdEditor).mount('#app');
+</script>
+</body>
+</html>

@@ -1,10 +1,10 @@
 package api
 
 import (
-	"fmt"
-	"github.com/LubyRuffy/pagemd/pkg/aitrans"
-	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
+	v1 "github.com/LubyRuffy/pagemd/api/v1"
+	"github.com/LubyRuffy/pagemd/web"
 	"github.com/gin-gonic/gin"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -31,54 +31,13 @@ func Start(addr string) error {
 	e := gin.Default()
 
 	e.Use(URLPassthroughMiddleware())
+	rg := e.Group("/api/v1")
+	v1.Bind(rg)
 
-	e.GET(`/url/*any`, func(c *gin.Context) {
-		if targetURL, exists := c.Get("targetURL"); exists {
-			ci, err := pagecontent.NewAnalysis(pagecontent.WithURL(targetURL.(string))).ExtractMainContent()
-			if err != nil {
-				c.JSON(500, gin.H{
-					"error": err.Error(),
-				})
-				return
-			}
-			c.JSON(200, ci)
-			return
-		}
-		c.String(http.StatusNotFound, "Not Found")
+	e.StaticFS("/web", http.FS(web.WebFs))
+	e.GET(`/`, func(c *gin.Context) {
+		c.Redirect(301, "/web/index.html")
 	})
-	e.GET(`/translate/*any`, func(c *gin.Context) {
-		if targetURL, exists := c.Get("targetURL"); exists {
-			ci, err := pagecontent.NewAnalysis(pagecontent.WithURL(targetURL.(string))).ExtractMainContent()
-			if err != nil {
-				c.JSON(500, gin.H{
-					"error": err.Error(),
-				})
-				return
-			}
-			a := aitrans.New()
-			v, err := a.TranslateToChinese(c,
-				ci.Markdown,
-				func(s string) {
-					fmt.Printf("%s", s)
-				})
-			if err != nil {
-				c.JSON(500, gin.H{
-					"error": err.Error(),
-				})
-				return
-			}
-
-			cnci := struct {
-				*pagecontent.ContentInfo
-				MarkdownCN string `json:"markdown_cn"`
-			}{
-				ContentInfo: ci,
-				MarkdownCN:  v,
-			}
-			c.JSON(200, cnci)
-			return
-		}
-		c.String(http.StatusNotFound, "Not Found")
-	})
+	log.Printf("Server listening on http://%s\n", addr)
 	return e.Run(addr)
 }
