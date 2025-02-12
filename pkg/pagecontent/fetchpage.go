@@ -3,7 +3,9 @@ package pagecontent
 import (
 	"errors"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -23,7 +25,7 @@ var ErrNotHtml = errors.New("not html") // not html error
 // Returns:
 //   - string: The HTML content of the page.
 //   - error: An error if the fetching process fails.
-func fetchPageHTMLHeadless(u string, debug bool) (string, error) {
+func fetchPageHTMLHeadless(u string, debug bool, onImg func(string, []byte)) (string, error) {
 	var browser *rod.Browser
 	if debug {
 		// Headless runs the browser on foreground, you can also use flag "-rod=show"
@@ -54,7 +56,54 @@ func fetchPageHTMLHeadless(u string, debug bool) (string, error) {
 	defer browser.MustClose()
 
 	// Create a new page
-	page := browser.MustPage(u).Timeout(10 * time.Second).MustWaitStable()
+	page := browser.MustPage()
+
+	// 设置网络事件监听器
+	router := page.HijackRequests()
+	router.MustAdd("*", func(ctx *rod.Hijack) {
+		// 我们只对图片请求感兴趣
+		if ctx.Request.Type() == proto.NetworkResourceTypeImage {
+			// 拦截请求
+			go func() {
+				// 获取响应
+				err := ctx.LoadResponse(http.DefaultClient, true)
+				if err != nil {
+					log.Println("LoadResponse error:", err)
+					return // Don't panic; it might just be a single image failure.
+				}
+
+				// Check if the response is valid.
+				if ctx.Response == nil { // ctx.Response is available after LoadResponse
+					log.Println("Response is nil for", ctx.Request.URL())
+					return
+				}
+
+				// Check the status code.
+				if ctx.Response.RawResponse.StatusCode != http.StatusOK {
+					log.Printf("Image %s status code: %d\n", ctx.Request.URL(), ctx.Response.RawResponse.StatusCode)
+					return // Only process 200 OK images.
+				}
+
+				if len(ctx.Response.Body()) == 0 {
+					log.Printf("Image %s is empty\n", ctx.Request.URL())
+					return // Skip empty images.
+				}
+
+				// todo：替换图片
+				onImg(ctx.Request.URL().String(), []byte(ctx.Response.Body()))
+			}()
+
+			ctx.ContinueRequest(&proto.FetchContinueRequest{}) // 继续原始请求
+
+		} else {
+			ctx.ContinueRequest(&proto.FetchContinueRequest{}) //不拦截其他资源
+		}
+	})
+	// 开始监听
+	go router.Run()     //必须在单独的 goroutine 中运行，否则会阻塞
+	defer router.Stop() // 确保停止劫持
+
+	page = page.Timeout(10 * time.Second).MustNavigate(u).MustWaitStable()
 	return page.HTML()
 }
 
@@ -70,7 +119,7 @@ func fetchPageHTMLHeadless(u string, debug bool) (string, error) {
 func fetchPageHTML(u string, headless bool, debug bool) (string, error) {
 	// Implement fetching the page content from the given URL
 	if headless {
-		return fetchPageHTMLHeadless(u, debug)
+		return fetchPageHTMLHeadless(u, debug, nil)
 	}
 
 	resp, err := http.Get(u)
