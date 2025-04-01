@@ -2,6 +2,7 @@ package pagecontent
 
 import (
 	"errors"
+	"fmt"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"io"
@@ -58,52 +59,97 @@ func fetchPageHTMLHeadless(u string, debug bool, onImg func(string, []byte)) (st
 	// Create a new page
 	page := browser.MustPage()
 
-	// 设置网络事件监听器
-	router := page.HijackRequests()
-	router.MustAdd("*", func(ctx *rod.Hijack) {
-		// 我们只对图片请求感兴趣
-		if ctx.Request.Type() == proto.NetworkResourceTypeImage {
-			// 拦截请求
-			go func() {
-				// 获取响应
-				err := ctx.LoadResponse(http.DefaultClient, true)
-				if err != nil {
-					log.Println("LoadResponse error:", err)
-					return // Don't panic; it might just be a single image failure.
-				}
+	if onImg != nil {
+		// 设置网络事件监听器
+		router := page.HijackRequests()
+		router.MustAdd("*", func(ctx *rod.Hijack) {
+			// 我们只对图片请求感兴趣
+			if ctx.Request.Type() == proto.NetworkResourceTypeImage {
+				// 拦截请求
+				go func() {
+					// 获取响应
+					err := ctx.LoadResponse(http.DefaultClient, true)
+					if err != nil {
+						log.Println("LoadResponse error:", err)
+						return // Don't panic; it might just be a single image failure.
+					}
 
-				// Check if the response is valid.
-				if ctx.Response == nil { // ctx.Response is available after LoadResponse
-					log.Println("Response is nil for", ctx.Request.URL())
-					return
-				}
+					// Check if the response is valid.
+					if ctx.Response == nil { // ctx.Response is available after LoadResponse
+						log.Println("Response is nil for", ctx.Request.URL())
+						return
+					}
 
-				// Check the status code.
-				if ctx.Response.RawResponse.StatusCode != http.StatusOK {
-					log.Printf("Image %s status code: %d\n", ctx.Request.URL(), ctx.Response.RawResponse.StatusCode)
-					return // Only process 200 OK images.
-				}
+					// Check the status code.
+					if ctx.Response.RawResponse.StatusCode != http.StatusOK {
+						log.Printf("Image %s status code: %d\n", ctx.Request.URL(), ctx.Response.RawResponse.StatusCode)
+						return // Only process 200 OK images.
+					}
 
-				if len(ctx.Response.Body()) == 0 {
-					log.Printf("Image %s is empty\n", ctx.Request.URL())
-					return // Skip empty images.
-				}
+					if len(ctx.Response.Body()) == 0 {
+						log.Printf("Image %s is empty\n", ctx.Request.URL())
+						return // Skip empty images.
+					}
 
-				// todo：替换图片
-				onImg(ctx.Request.URL().String(), []byte(ctx.Response.Body()))
-			}()
+					// todo：替换图片
+					onImg(ctx.Request.URL().String(), []byte(ctx.Response.Body()))
+				}()
 
-			ctx.ContinueRequest(&proto.FetchContinueRequest{}) // 继续原始请求
+				ctx.ContinueRequest(&proto.FetchContinueRequest{}) // 继续原始请求
 
-		} else {
-			ctx.ContinueRequest(&proto.FetchContinueRequest{}) //不拦截其他资源
+			} else {
+				ctx.ContinueRequest(&proto.FetchContinueRequest{}) //不拦截其他资源
+			}
+		})
+		// 开始监听
+		go router.Run()     //必须在单独的 goroutine 中运行，否则会阻塞
+		defer router.Stop() // 确保停止劫持
+	}
+
+	page = page.Timeout(10 * time.Second).MustNavigate(u).MustWaitStable().CancelTimeout()
+
+	removeInvisibleDiv := false
+	if removeInvisibleDiv {
+		// 使用JavaScript直接在页面上执行删除不可见div的操作
+		// 这样避免了在Go代码中遍历元素可能导致的引用问题
+		script := `() => 
+    (function() {
+        // 获取所有div元素
+        const divs = Array.from(document.querySelectorAll('div'));
+        let removedCount = 0;
+        
+        // 遍历并检查每个div
+        for (const div of divs) {
+            const style = window.getComputedStyle(div);
+            
+            // 检查元素是否不可见
+            if (style.display === 'none' || 
+                style.visibility === 'hidden' || 
+                style.opacity === '0' || 
+                (div.offsetWidth === 0 && div.offsetHeight === 0)) {
+                
+                // 如果元素有父节点，则移除它
+                if (div.parentNode) {
+                    div.parentNode.removeChild(div);
+                    removedCount++;
+                }
+            }
+        }
+        
+        return removedCount;
+    })()
+    `
+
+		result := page.MustEval(script)
+		fmt.Printf("已删除 %v 个不可见的div元素\n", result.Int())
+
+		nodes := page.MustElements("div")
+		for _, node := range nodes {
+			if v, err := node.Visible(); err == nil && !v {
+				node.MustRemove()
+			}
 		}
-	})
-	// 开始监听
-	go router.Run()     //必须在单独的 goroutine 中运行，否则会阻塞
-	defer router.Stop() // 确保停止劫持
-
-	page = page.Timeout(10 * time.Second).MustNavigate(u).MustWaitStable()
+	}
 	return page.HTML()
 }
 

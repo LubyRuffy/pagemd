@@ -26,7 +26,7 @@
         }
         iframe {
             width: 100%;
-            height: 100%;
+            height: 100%; // 修改: 保持高度不变
             border: none;
         }
         .right {
@@ -59,7 +59,7 @@
     </div>
     <div class="container">
         <div class="left">
-            <iframe ref="contentFrame"></iframe> // 修改: 添加ref引用
+            <iframe ref="contentFrame"></iframe>
         </div>
         <div class="right">
             <md-editor-v3 v-model="markdownContent" class="md-editor-v3" />

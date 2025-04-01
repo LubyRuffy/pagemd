@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html"
 	"log"
 	"math"
 	"strings"
@@ -30,12 +31,13 @@ type Node struct {
 	Density    float64 // Density is the ratio of text length to non-text child node count.
 	Text       string  // Text is the trimmed text content of the node.
 	HTML       string  // HTML is the original HTML code of the node.
+	DirectText string  // DirectText is the text content of the node, excluding any child nodes.
 }
 
 // String returns a human-readable representation of the Node.
 func (n *Node) String() string {
-	return fmt.Sprintf("Node{TextLength: %d, NodeCount: %d, Depth: %d, Density: %.2f, Selector: %s, Score: %v}",
-		n.TextLength, n.NodeCount, n.Depth, n.Density, n.selector, n.score)
+	return fmt.Sprintf("Node{TextLength: %d, NodeCount: %d, Depth: %d, Density: %.2f, Selector: %s, Score: %v, DirectText: %s}",
+		n.TextLength, n.NodeCount, n.Depth, n.Density, n.selector, n.score, n.DirectText)
 }
 
 // CalculateScore computes the score of the node based on text density and length.
@@ -51,13 +53,32 @@ func (n *Node) CalculateScore(depthCare bool) float64 {
 	return n.score
 }
 
+func valuableText(text string) string {
+	text = strings.ReplaceAll(text, "\n", "")
+	text = strings.ReplaceAll(text, "\t", "")
+	text = strings.ReplaceAll(text, "\r", "")
+	text = strings.ReplaceAll(text, " ", "")
+	return text
+}
+
 // NewNodeFromSelection creates a new Node from a goquery.Selection.
 // It extracts text, HTML content, and calculates various attributes like Depth, TextLength, NodeCount, and Density.
 func NewNodeFromSelection(s *goquery.Selection) *Node {
-	text := strings.TrimSpace(s.Text())
-	html, err := s.Html()
+	text := valuableText(strings.TrimSpace(s.Text()))
+	htmlContent, err := s.Html()
 	if err != nil {
 		panic(err)
+	}
+
+	var buf bytes.Buffer
+	n := s.Nodes[0].FirstChild
+	for n != nil {
+		if n.Type == html.TextNode {
+			if v := strings.Trim(n.Data, "\n\t\r "); v != "" {
+				buf.WriteString(n.Data)
+			}
+		}
+		n = n.NextSibling
 	}
 
 	parents := s.ParentsFiltered("*").Nodes
@@ -65,9 +86,10 @@ func NewNodeFromSelection(s *goquery.Selection) *Node {
 	node := &Node{
 		Depth:      len(parents),   // Depth is determined by the number of parent nodes.
 		Text:       text,           // Text is the trimmed content of the node.
-		HTML:       html,           // HTML stores the original HTML code of the node.
+		HTML:       htmlContent,    // HTML stores the original HTML code of the node.
 		selector:   getSelector(s), // Selector represents the CSS path to this node.
 		TextLength: len(text),
+		DirectText: buf.String(),
 	}
 
 	// Calculate NodeCount by subtracting common text nodes from total child nodes.
@@ -87,11 +109,13 @@ func NewNodeFromSelection(s *goquery.Selection) *Node {
 		s.Find("tr").Length() -
 		s.Find("td").Length() -
 		s.Find("th").Length() -
+		s.Find("ul").Length() -
+		s.Find("li").Length() -
 		s.Find("section").Length() +
-		10 // 保证有值
+		5 // 保证有值
 
 	// Density is the ratio of text length to non-text child node count.
-	node.Density = float64(node.TextLength) / float64(node.NodeCount)
+	node.Density = float64(node.TextLength-len(s.Find("style").Text())) / float64(node.NodeCount)
 
 	return node
 }
@@ -162,19 +186,24 @@ func extractMainContent(htmlContent string, depthCare bool, debug bool) (*Node, 
 
 		score := node.CalculateScore(depthCare)
 
+		if debug {
+			log.Println(score, node)
+		}
+
 		if score > maxScore {
 			maxScore = score
 			bestNode = node
 
 			if debug {
-				log.Println(score, node)
+				log.Println("change to:", score, node)
 			}
-
 		}
 	}
 
 	doc.Find("div").Each(extract)
 	doc.Find("article").Each(extract)
+	//doc.Find("p").Each(extract)
+	//doc.Find("span").Each(extract)
 
 	if bestNode != nil {
 		return bestNode, nil
