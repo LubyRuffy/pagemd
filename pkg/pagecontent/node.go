@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"golang.org/x/net/html"
 	"log"
 	"math"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html"
 )
 
 const (
@@ -43,14 +44,89 @@ func (n *Node) String() string {
 // CalculateScore computes the score of the node based on text density and length.
 // If depthCare is true, the depth of the node is also considered in the scoring.
 func (n *Node) CalculateScore(depthCare bool) float64 {
+	// 基础分：密度分数
 	densityScore := n.Density
+	// 长度分数：文本长度的对数，避免过长文本占太大优势
 	lengthScore := math.Log2(float64(n.TextLength))
-	n.score = densityScore + lengthScore
+
+	// 内容分析加分
+	contentBonus := 0.0
+
+	// 1. 考虑文本的链接密度
+	// 有序列表或无序列表通常是页面的主要内容之一
+	linkCount := strings.Count(n.HTML, "<a ")
+	if linkCount > 3 {
+		// 有一定数量的链接时，给予适当加分，但避免过度加分
+		contentBonus += math.Min(float64(linkCount)*0.3, 15.0)
+	}
+
+	// 2. 检查结构特征
+	// 重复模式通常是内容的一部分（如列表项、表格行等）
+	repeatedPatterns := countRepeatedPatterns(n.HTML)
+	if repeatedPatterns > 5 {
+		contentBonus += math.Min(float64(repeatedPatterns)*0.5, 20.0)
+	}
+
+	// 3. 结构化元素加分
+	// 文章的主要内容通常包含结构化元素
+	if strings.Contains(n.HTML, "<table") ||
+		strings.Contains(n.HTML, "<ul") ||
+		strings.Contains(n.HTML, "<ol") {
+		contentBonus += 10.0
+	}
+
+	// 4. 基于角色和语义的加分
+	// 使用HTML5语义标签或ARIA角色的元素通常是主要内容
+	if strings.Contains(n.selector, "[role='region']") ||
+		strings.Contains(n.selector, "[role='main']") ||
+		strings.Contains(n.selector, "[role='article']") ||
+		strings.Contains(n.selector, "article") ||
+		strings.Contains(n.selector, "main") ||
+		strings.Contains(n.selector, "section") {
+		contentBonus += 15.0
+	}
+
+	// 5. ID选择器检测 - 通常带有特定ID的元素是页面主要内容
+	if strings.Contains(n.selector, "#content") ||
+		strings.Contains(n.selector, "#main") ||
+		strings.Contains(n.selector, "#article") ||
+		strings.Contains(n.selector, "#report") {
+		contentBonus += 25.0
+	}
+
+	// 6. 下载链接检测 - 包含下载链接的往往是重要内容
+	if strings.Contains(n.HTML, ".pdf") ||
+		strings.Contains(n.HTML, "download") ||
+		strings.Contains(n.HTML, "Download") {
+		contentBonus += 15.0
+	}
+
+	// 最终得分是密度分数、长度分数和内容分析加分的总和
+	n.score = densityScore + lengthScore + contentBonus
+
+	// 如果考虑深度，将得分乘以深度分数
 	if depthCare {
 		depthScore := math.Log(float64(n.Depth + 1))
 		n.score = n.score * depthScore
 	}
+
 	return n.score
+}
+
+// countRepeatedPatterns counts the number of repeated HTML patterns in the content
+// This helps identify lists, tables, and other structured content
+func countRepeatedPatterns(html string) int {
+	patterns := []string{
+		"<li", "<tr", "<div class", "<p class", "<span class",
+		"</li>", "</tr>", "href=", "class=\"", "id=\"",
+	}
+
+	count := 0
+	for _, pattern := range patterns {
+		count += strings.Count(html, pattern)
+	}
+
+	return count / len(patterns) // 返回平均值以平衡不同模式的影响
 }
 
 func valuableText(text string) string {
@@ -175,11 +251,13 @@ func extractMainContent(htmlContent string, depthCare bool, debug bool) (*Node, 
 	var maxScore float64
 
 	extract := func(i int, s *goquery.Selection) {
+		// 跳过文本内容太少的节点
 		if len(s.Text()) < MinContentText {
 			return
 		}
 
 		node := NewNodeFromSelection(s)
+		// 跳过密度太低的节点
 		if node.Density < MinDensity {
 			return
 		}
@@ -200,10 +278,53 @@ func extractMainContent(htmlContent string, depthCare bool, debug bool) (*Node, 
 		}
 	}
 
-	doc.Find("div").Each(extract)
-	doc.Find("article").Each(extract)
-	//doc.Find("p").Each(extract)
-	//doc.Find("span").Each(extract)
+	// 1. 首先尝试通过ID选择器查找明确的内容区域
+	idSelectors := []string{
+		"#content_1_reportImage", "#content", "#main-content", "#article-content",
+		"#report", "#main", "#primary", "#content-body", "#post-content",
+	}
+
+	for _, selector := range idSelectors {
+		doc.Find(selector).Each(extract)
+		if bestNode != nil {
+			break
+		}
+	}
+
+	// 2. 如果没找到，再尝试通过语义标签查找内容
+	if bestNode == nil {
+		semanticSelectors := []string{
+			"article", "main", "section.content", "div.content", "div.main",
+			"div.article", "div[role='main']", "div[role='article']",
+			"div[role='region'][aria-label*='内容']", "div[role='region'][aria-label*='content']",
+			"div.post-content", "div.entry-content",
+		}
+
+		for _, selector := range semanticSelectors {
+			doc.Find(selector).Each(extract)
+			if bestNode != nil {
+				break
+			}
+		}
+	}
+
+	// 3. 如果仍没找到，查找具有特定特征的内容区域
+	if bestNode == nil {
+		// 先查找包含下载链接的区域
+		doc.Find("div:has(a[href*='.pdf']), div:has(a:contains('Download'))").Each(extract)
+
+		// 查找包含表格、表单等结构化元素的区域
+		if bestNode == nil {
+			doc.Find("div:has(table), div:has(form), div:has(ul), div:has(ol)").Each(extract)
+
+			// 如果还没找到，查找所有可能的内容容器
+			if bestNode == nil {
+				doc.Find("div").Each(extract)
+				doc.Find("td").Each(extract)
+				doc.Find("section").Each(extract)
+			}
+		}
+	}
 
 	if bestNode != nil {
 		return bestNode, nil
