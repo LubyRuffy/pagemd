@@ -3,23 +3,32 @@ package aitag
 import (
 	"context"
 	"fmt"
+	"github.com/LubyRuffy/pagemd/pkg/llm"
 	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"path/filepath"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
 )
 
 func TestNew(t *testing.T) {
+	cfg, err := llm.Load("../../config.yaml")
+	assert.NoError(t, err)
+
+	// 创建一个文件服务器
+	fileServer := http.FileServer(http.Dir("../../testdata"))
+
+	// 创建一个测试服务器
+	server := httptest.NewServer(fileServer)
+	defer server.Close()
+
 	testF := func(f string, tags []string) {
-		h, err := os.ReadFile(filepath.Join("../../testdata", f))
+		ci, err := pagecontent.NewAnalysis(pagecontent.WithURL(server.URL+f), pagecontent.WithDebug(true)).
+			ExtractMainContent()
 		assert.NoError(t, err)
 
-		ci, err := pagecontent.NewAnalysis(pagecontent.WithURL("http://127.0.0.1/a/b/c.html"),
-			pagecontent.WithHTML(string(h))).ExtractMainContent()
-
-		llmTags, err := New().Tag(context.Background(),
+		llmTags, err := New(cfg).Tag(context.Background(),
 			ci.Markdown,
 			func(s string) {
 				fmt.Printf("%s", s)
@@ -34,9 +43,9 @@ func TestNew(t *testing.T) {
 		//assert.Equal(t, tags, llmTags)
 	}
 
-	testF("a.html", []string{"cybersecurity", "fuzzing", "technical", "vulnerability exploitation"})
-	testF("b.html", []string{"cybersecurity", "security tools", "technical"})
-	testF("c.html", []string{"programming", "technical", "software engineering"})
-	testF("d.html", []string{"AI", "javascript", "python", "ollama", "AI tools", "technical", "programming"})
-	testF("e.html", []string{"golang", "technical", "programming"})
+	testF("/a.html", []string{"cybersecurity", "fuzzing", "technical", "vulnerability exploitation"})
+	testF("/b.html", []string{"cybersecurity", "security tools", "technical"})
+	testF("/c.html", []string{"programming", "technical", "software engineering"})
+	testF("/d.html", []string{"AI", "javascript", "python", "ollama", "AI tools", "technical", "programming"})
+	testF("/e.html", []string{"golang", "technical", "programming"})
 }

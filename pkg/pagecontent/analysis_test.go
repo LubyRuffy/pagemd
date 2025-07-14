@@ -9,24 +9,32 @@ import (
 )
 
 func TestExtractMainContent(t *testing.T) {
-	// 测试支持图片的相对路径
-	ci, err := NewAnalysis(WithURL("http://127.0.0.1/a/b/c.html"),
-		WithHTML(`<div><img src="a.jpg"/>this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. <div>`)).ExtractMainContent()
-	assert.NoError(t, err)
-	assert.Contains(t, ci.Markdown, "http://127.0.0.1/a/b/a.jpg")
 
-	ci, err = NewAnalysis(WithURL("http://127.0.0.1/a/b/c.html"),
-		WithHTML(`<div><img src="/a.jpg"/>this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. `+
-			`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. <div>`)).ExtractMainContent()
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.RequestURI == "/a/b/img_ref.html" {
+			w.Write([]byte(`<div><img src="a.jpg"/>this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. <div>`))
+		} else if r.RequestURI == "/a/b/img_abs.html" {
+			w.Write([]byte(`<div><img src="/a.jpg"/>this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. ` +
+				`this is a text. this is a text. this is a text. this is a text. this is a text. this is a text. <div>`))
+		}
+	}))
+	defer s.Close()
+
+	// 测试支持图片的相对路径
+	ci, err := NewAnalysis(WithURL(s.URL+"/a/b/img_ref.html"), WithDebug(true)).ExtractMainContent()
 	assert.NoError(t, err)
-	assert.Contains(t, ci.Markdown, "http://127.0.0.1/a.jpg")
+	assert.Contains(t, ci.Markdown, s.URL+"/a/b/a.jpg")
+
+	ci, err = NewAnalysis(WithURL(s.URL + "/a/b/img_abs.html")).ExtractMainContent()
+	assert.NoError(t, err)
+	assert.Contains(t, ci.Markdown, s.URL+"/a.jpg")
 
 	//ci, err = NewAnalysis(WithURL("https://www.cnblogs.com/fanghan/p/13075290.html")).ExtractMainContent()
 	//assert.NoError(t, err)
@@ -40,7 +48,7 @@ func testFile(t *testing.T, file string, f func(ci *ContentInfo)) {
 	server := httptest.NewServer(fileServer)
 	defer server.Close()
 	url := server.URL + "/" + file
-	ci, err := NewAnalysis(WithURL(url), WithDebug(true), WithHeadless(true)).ExtractMainContent()
+	ci, err := NewAnalysis(WithURL(url), WithDebug(true)).ExtractMainContent()
 	assert.NoError(t, err)
 	f(ci)
 }
@@ -83,4 +91,11 @@ func TestExtractMainContent_g(t *testing.T) {
 	testFile(t, "g.html", func(ci *ContentInfo) {
 		assert.Contains(t, ci.Markdown, "2001年")
 	})
+}
+
+func TestExtractMainContent_h(t *testing.T) {
+	url := "https://www.freebuf.com/articles/vuls/437870.html"
+	ci, err := NewAnalysis(WithURL(url), WithDebug(true)).ExtractMainContent()
+	assert.NoError(t, err)
+	assert.Contains(t, ci.Markdown, "在安卓13以前")
 }

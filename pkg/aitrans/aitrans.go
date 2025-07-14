@@ -2,16 +2,12 @@ package aitrans
 
 import (
 	"context"
-	"github.com/ollama/ollama/api"
-	"net/http"
-	"net/url"
+	"github.com/LubyRuffy/pagemd/pkg/llm"
 )
 
 var (
-	OllamaEndpoint = "http://localhost:11434"
-	OllamaModel    = "qwen2.5:7b"
-	//OllamaModel         = "qwen2.5:32b"
-	DefaultSystemPrompt = `You are a highly skilled translator tasked with translating various types of content from other languages into Chinese. Follow these instructions carefully to complete the translation task:
+	DefaultSystemPrompt = `\
+You are a highly skilled translator tasked with translating various types of content from other languages into Chinese. Follow these instructions carefully to complete the translation task:
 
 ## Glossary
 
@@ -46,49 +42,16 @@ Here is a glossary of technical terms to use consistently in your translations:
 )
 
 type AiTranslator struct {
-	ollamaClient *api.Client
+	cfg *llm.ModelConfig
 }
-
-var (
-	True = true
-)
 
 func (a *AiTranslator) TranslateToChinese(ctx context.Context, md string, onData func(string)) (string, error) {
-	result := ""
-	err := a.ollamaClient.Chat(ctx, &api.ChatRequest{
-		Model: OllamaModel,
-		Messages: []api.Message{
-			{
-				Role:    "system",
-				Content: DefaultSystemPrompt,
-			},
-			{
-				Role:    "user",
-				Content: md,
-			},
-		},
-		Stream: &True,
-		Options: map[string]interface{}{
-			"num_ctx": 102400,
-		},
-	}, func(resp api.ChatResponse) error {
-		result += resp.Message.Content
-		if onData != nil {
-			onData(resp.Message.Content)
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	return result, nil
+	return a.cfg.Stream(ctx, DefaultSystemPrompt, md, onData)
 }
 
-func New() *AiTranslator {
-	u, _ := url.Parse(OllamaEndpoint)
-	client := api.NewClient(u, http.DefaultClient)
+func New(config *llm.ModelConfig) *AiTranslator {
 	ait := &AiTranslator{
-		ollamaClient: client,
+		cfg: config,
 	}
 	return ait
 }

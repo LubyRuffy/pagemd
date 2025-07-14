@@ -4,15 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/LubyRuffy/pagemd/pkg/llm"
+	"log"
+
 	"github.com/LubyRuffy/pagemd/pkg/aitrans"
 	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
-	"log"
 )
 
 func main() {
+	cfg, err := llm.Load("config.yaml")
+	if err != nil {
+		panic(err)
+	}
+
 	ci, err := pagecontent.NewFromFlags(
-		pagecontent.WithOnMainNodeFound(func(node *pagecontent.Node) {
-			log.Println("found main node, size:", len(node.HTML))
+		pagecontent.WithOnMainContentFound(func(s string) {
+			log.Println("found main content, size:", len(s))
 		}),
 		pagecontent.WithOnHtmlFetched(func(htmlContent string) {
 			log.Println("fetched html, size:", len(htmlContent))
@@ -27,7 +34,7 @@ func main() {
 
 	log.Println("try to translate...")
 
-	a := aitrans.New()
+	a := aitrans.New(cfg)
 	a.TranslateToChinese(context.Background(),
 		ci.Markdown,
 		func(s string) {

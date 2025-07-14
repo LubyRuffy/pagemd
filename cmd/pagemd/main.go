@@ -4,17 +4,18 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
 	"log"
 	"os"
+
+	"github.com/LubyRuffy/pagemd/pkg/pagecontent"
 )
 
 func main() {
 	output := flag.String("output", "", "output of markdown")
 
 	ci, err := pagecontent.NewFromFlags(
-		pagecontent.WithOnMainNodeFound(func(node *pagecontent.Node) {
-			log.Println("found main node, size:", len(node.HTML))
+		pagecontent.WithOnMainContentFound(func(s string) {
+			log.Println("found main node, size:", len(s))
 		}),
 		pagecontent.WithOnHtmlFetched(func(htmlContent string) {
 			log.Println("fetched html, size:", len(htmlContent))
